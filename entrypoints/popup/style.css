@@ -1,10 +1,24 @@
-body { width: 380px; max-height: 520px; margin: 0; padding: 12px; font-family: system-ui, sans-serif; background: #1c1c1c; color: #eee; font-size: 13px; }
+body { width: 400px; max-height: 560px; margin: 0; padding: 12px; font-family: system-ui, sans-serif; background: #1c1c1c; color: #eee; font-size: 13px; }
 h1 { font-size: 15px; margin: 0 0 10px; }
 ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-li { background: #2a2a2a; border-radius: 8px; padding: 8px 10px; }
+
+/* nota */
+.card { background: #2a2a2a; border-radius: 8px; padding: 8px 10px; }
 .note { white-space: pre-wrap; word-break: break-word; margin-bottom: 6px; }
 .meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: #999; }
-a { color: #7ab7ff; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; display: inline-block; }
+.meta span { white-space: nowrap; }
+a { color: #7ab7ff; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 a:hover { text-decoration: underline; }
 button { background: none; border: none; color: #e11d1d; cursor: pointer; font-size: 11px; }
 img { width: 100%; max-height: 200px; object-fit: contain; background: #111; border-radius: 6px; margin-bottom: 6px; cursor: zoom-in; }
+
+/* carpeta */
+details { background: #232323; border: 1px solid #333; border-radius: 10px; }
+summary { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; list-style: none; user-select: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: '▸'; color: #888; font-size: 11px; transition: transform .12s; }
+details[open] > summary::before { transform: rotate(90deg); }
+.fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.count { background: #3a3a3a; color: #ccc; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+.items { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
+.section { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; margin: 6px 2px 0; }
