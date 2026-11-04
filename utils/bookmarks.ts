@@ -6,23 +6,28 @@ export interface Bookmark {
   note: string;
   date: string; // ISO: fecha + hora
   image: string | null; // dataURL (JPEG) de la captura anotada
+  quote?: string | null; // texto seleccionado en la página al que se refiere la nota (opcional; notas viejas no lo tienen)
 }
 
 export const bookmarksItem = storage.defineItem<Bookmark[]>('local:bookmarks', {
   fallback: [],
 });
 
-export async function addBookmark(
-  note: string,
-  url: string,
-  image: string | null = null,
-): Promise<Bookmark> {
+export interface NewBookmark {
+  note: string;
+  url: string;
+  image?: string | null;
+  quote?: string | null;
+}
+
+export async function addBookmark(input: NewBookmark): Promise<Bookmark> {
   const bookmark: Bookmark = {
     id: crypto.randomUUID(),
-    url,
-    note,
+    url: input.url,
+    note: input.note,
     date: new Date().toISOString(),
-    image,
+    image: input.image ?? null,
+    quote: input.quote ?? null,
   };
   const list = await bookmarksItem.getValue();
   await bookmarksItem.setValue([bookmark, ...list]);

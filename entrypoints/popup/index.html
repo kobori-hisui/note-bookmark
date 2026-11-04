@@ -6,7 +6,16 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <h1>Historial</h1>
+    <header>
+      <h1>Historial</h1>
+      <div class="actions">
+        <button id="export" title="Descargar todas las notas como JSON (respaldo; se puede importar de vuelta)">↓ JSON</button>
+        <button id="export-db" title="Descargar una base de datos SQLite (.db) que abre cualquier gestor">↓ .db</button>
+        <button id="import" title="Importar notas desde un JSON">↑ Importar</button>
+      </div>
+    </header>
+    <p id="status" hidden></p>
+    <input id="file" type="file" accept="application/json,.json" hidden />
     <ul id="list"></ul>
     <p id="empty" hidden>Aún no hay notas.</p>
     <script type="module" src="./main.ts"></script>

@@ -1,6 +1,20 @@
 import { addBookmark } from '@/utils/bookmarks';
+import { normalizeQuote } from '@/utils/quote';
 import { openEditor } from './editor';
 import { cropImage, selectRegion } from './selector';
+
+/** Texto seleccionado en la página (también dentro de inputs/textarea). */
+function readSelection(): string {
+  try {
+    const ae = document.activeElement;
+    if (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement) {
+      return normalizeQuote(ae.value.slice(ae.selectionStart ?? 0, ae.selectionEnd ?? 0));
+    }
+    return normalizeQuote(window.getSelection()?.toString() ?? '');
+  } catch {
+    return ''; // p. ej. input type=email lanza al leer selectionStart
+  }
+}
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -69,6 +83,17 @@ export default defineContentScript({
           to   { opacity: 1; transform: none; }
         }
 
+        /* Referencia: texto seleccionado en la página */
+        .quote { display: flex; align-items: flex-start; gap: 10px; padding: 4px 6px 10px 8px;
+                 font-size: 13px; line-height: 1.45; color: var(--muted); }
+        .quote[hidden] { display: none; }
+        .qbar { flex: none; width: 3px; align-self: stretch; border-radius: 2px; background: var(--accent); }
+        .qtext { flex: 1; min-width: 0; font-style: italic; word-break: break-word; overflow: hidden;
+                 display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+        .qx { flex: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+              background: transparent; color: var(--muted); font-size: 11px; line-height: 20px; }
+        .qx:hover { background: var(--chip); color: var(--fg); }
+
         .field {
           display: flex; align-items: center; gap: 12px;
           min-height: 48px; padding: 0 12px 0 14px;
@@ -126,6 +151,11 @@ export default defineContentScript({
       <div class="backdrop"></div>
       <div class="stage">
         <div class="spot">
+          <div class="quote" hidden>
+            <span class="qbar"></span>
+            <span class="qtext"></span>
+            <button class="qx" title="Quitar referencia">✕</button>
+          </div>
           <div class="field">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
@@ -161,6 +191,15 @@ export default defineContentScript({
     const enterBtn = $<HTMLButtonElement>('.enter');
     const keys = $<HTMLDivElement>('.keys');
     const site = $<HTMLSpanElement>('.site');
+    const quoteBox = $<HTMLDivElement>('.quote');
+    const quoteText = $<HTMLSpanElement>('.qtext');
+    const quoteClear = $<HTMLButtonElement>('.qx');
+
+    const PLACEHOLDER = 'Escribe una nota…';
+    const PLACEHOLDER_QUOTE = 'Añade una nota sobre esta cita…';
+
+    // Texto de la página al que se refiere la nota (se captura al abrir con Alt+C)
+    let quote: string | null = null;
 
     const KEYS_HTML = `
       <span><kbd>↵</kbd> guardar</span>
@@ -169,7 +208,15 @@ export default defineContentScript({
     const setKeys = () => (keys.innerHTML = KEYS_HTML);
     setKeys();
 
-    const syncActive = () => spot.classList.toggle('active', textarea.value.length > 0);
+    const syncActive = () => spot.classList.toggle('active', textarea.value.length > 0 || !!quote);
+    const setQuote = (q: string | null) => {
+      quote = q;
+      quoteBox.hidden = !q;
+      quoteText.textContent = q ?? '';
+      quoteText.title = q ?? '';
+      textarea.placeholder = q ? PLACEHOLDER_QUOTE : PLACEHOLDER;
+      syncActive();
+    };
     const autosize = () => {
       textarea.style.height = '24px';
       textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
@@ -178,7 +225,7 @@ export default defineContentScript({
     const reset = () => {
       textarea.value = '';
       autosize();
-      syncActive();
+      setQuote(null);
     };
 
     const show = () => {
@@ -190,7 +237,13 @@ export default defineContentScript({
     const hide = () => {
       host.style.display = 'none';
     };
-    const toggle = () => (host.style.display === 'none' ? show() : hide());
+    // Al abrir con Alt+C se lee la selección ANTES de enfocar el textarea (enfocar la borraría)
+    const open = () => {
+      const sel = readSelection();
+      if (sel) setQuote(sel);
+      show();
+    };
+    const toggle = () => (host.style.display === 'none' ? open() : hide());
 
     const flash = (text: string, cls: 'ok' | 'err', then?: () => void) => {
       keys.innerHTML = `<span class="${cls}">${text}</span>`;
@@ -204,8 +257,8 @@ export default defineContentScript({
 
     const save = async () => {
       const note = textarea.value.trim();
-      if (!note) return;
-      await addBookmark(note, location.href); // image = null
+      if (!note && !quote) return; // se permite guardar solo la cita sin comentario
+      await addBookmark({ note, url: location.href, quote });
       reset();
       flash('Guardado ✓', 'ok', hide);
     };
@@ -221,6 +274,10 @@ export default defineContentScript({
     field.addEventListener('mousedown', (e) => {
       if ((e.target as HTMLElement).closest('button')) return;
       e.preventDefault();
+      textarea.focus();
+    });
+    quoteClear.addEventListener('click', () => {
+      setQuote(null);
       textarea.focus();
     });
 
@@ -250,7 +307,7 @@ export default defineContentScript({
 
       const region = await selectRegion();
       if (!region) {
-        show(); // canceló; la nota sigue en el textarea
+        show(); // canceló; nota y cita siguen ahí
         return;
       }
       await new Promise((r) => setTimeout(r, 150)); // deja repintar sin overlay
@@ -274,7 +331,7 @@ export default defineContentScript({
         show();
         return;
       }
-      await addBookmark(result.note, location.href, result.image);
+      await addBookmark({ note: result.note, url: location.href, image: result.image, quote });
       reset();
     });
 

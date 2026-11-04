@@ -22,3 +22,18 @@ details[open] > summary::before { transform: rotate(90deg); }
 .count { background: #3a3a3a; color: #ccc; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
 .items { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
 .section { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; margin: 6px 2px 0; }
+
+/* cabecera / respaldo */
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+header h1 { margin: 0; }
+.actions { display: flex; gap: 6px; }
+.actions button { color: #ddd; background: #2f2f2f; border: 1px solid #444; border-radius: 6px; padding: 4px 9px; font-size: 12px; }
+.actions button:hover { border-color: #e11d1d; }
+#status { margin: 0 0 10px; padding: 6px 10px; border-radius: 6px; background: #2a2a2a; font-size: 12px; }
+#status.ok { color: #4ade80; }
+#status.err { color: #f87171; }
+body.tab { width: auto; max-width: 720px; max-height: none; margin: 0 auto; padding: 24px 16px; }
+
+/* cita */
+.quote { border-left: 3px solid #e11d1d; padding: 2px 8px; margin-bottom: 6px; color: #bbb; font-style: italic;
+         white-space: pre-wrap; word-break: break-word; max-height: 7em; overflow: auto; }
