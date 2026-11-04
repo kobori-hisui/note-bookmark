@@ -5,20 +5,24 @@ export interface Bookmark {
   url: string;
   note: string;
   date: string; // ISO: fecha + hora
-  image: string | null; // luego: dataURL de la captura
+  image: string | null; // dataURL (JPEG) de la captura anotada
 }
 
 export const bookmarksItem = storage.defineItem<Bookmark[]>('local:bookmarks', {
   fallback: [],
 });
 
-export async function addBookmark(note: string, url: string): Promise<Bookmark> {
+export async function addBookmark(
+  note: string,
+  url: string,
+  image: string | null = null,
+): Promise<Bookmark> {
   const bookmark: Bookmark = {
     id: crypto.randomUUID(),
     url,
     note,
     date: new Date().toISOString(),
-    image: null,
+    image,
   };
   const list = await bookmarksItem.getValue();
   await bookmarksItem.setValue([bookmark, ...list]);

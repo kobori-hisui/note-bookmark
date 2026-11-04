@@ -13,6 +13,11 @@ function render(items: Bookmark[]) {
     if (b.image) {
       const img = document.createElement('img');
       img.src = b.image;
+      img.title = 'Abrir imagen completa';
+      img.onclick = async () => {
+        const blob = await (await fetch(b.image!)).blob();
+        window.open(URL.createObjectURL(blob), '_blank');
+      };
       li.append(img);
     }
 

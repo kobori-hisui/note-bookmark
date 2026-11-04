@@ -7,4 +7,4 @@ li { background: #2a2a2a; border-radius: 8px; padding: 8px 10px; }
 a { color: #7ab7ff; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; display: inline-block; }
 a:hover { text-decoration: underline; }
 button { background: none; border: none; color: #e11d1d; cursor: pointer; font-size: 11px; }
-img { max-width: 100%; border-radius: 6px; margin-bottom: 6px; }
+img { width: 100%; max-height: 200px; object-fit: contain; background: #111; border-radius: 6px; margin-bottom: 6px; cursor: zoom-in; }
