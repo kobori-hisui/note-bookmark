@@ -1,5 +1,6 @@
 import { addBookmark } from '@/utils/bookmarks';
 import { openEditor } from './editor';
+import { cropImage, selectRegion } from './selector';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -30,7 +31,7 @@ export default defineContentScript({
         <textarea placeholder="Escribe una nota… (Enter guarda)"></textarea>
         <div class="row">
           <span class="hint">Enter guarda · Esc cierra</span>
-          <button class="cam">📷 Captura</button>
+          <button class="cam">📷 Región</button>
         </div>
       </div>
     `;
@@ -84,18 +85,24 @@ export default defineContentScript({
       flash('Guardado ✓', 'ok', hide);
     });
 
-    // 📷 Captura -> editor con anotaciones -> guarda con imagen
+    // 📷 Región -> seleccionar zona -> recorte -> editor con anotaciones -> guarda con imagen
     camBtn.addEventListener('click', async () => {
       const pendingNote = textarea.value;
       hide(); // que el cuadro no salga en la captura
-      await new Promise((r) => setTimeout(r, 150));
+
+      const region = await selectRegion();
+      if (!region) {
+        show(); // canceló; la nota sigue en el textarea
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 150)); // deja repintar sin overlay
 
       let dataUrl: string | undefined;
       try {
         const res = await browser.runtime.sendMessage({ type: 'capture' });
         dataUrl = res?.dataUrl;
       } catch {
-        // ignorado, se maneja abajo
+        // se maneja abajo
       }
       if (!dataUrl) {
         show();
@@ -103,9 +110,9 @@ export default defineContentScript({
         return;
       }
 
-      const result = await openEditor(dataUrl, pendingNote);
+      const cropped = await cropImage(dataUrl, region);
+      const result = await openEditor(cropped, pendingNote);
       if (!result) {
-        textarea.value = pendingNote;
         show();
         return;
       }
