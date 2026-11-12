@@ -11,7 +11,7 @@ import { exportJson, isSafeUrl, mergeBookmarks, parseBackup } from '@/utils/back
 import { folderLabel, groupBookmarks, type Folder } from '@/utils/folders';
 import { buildDb, loadSqlJs } from '@/utils/sqlite';
 import { textFragmentUrl } from '@/utils/quote';
-import { settingsItem, type ImageMode } from '@/utils/settings';
+import { settingsItem, updateSettings, type ImageMode } from '@/utils/settings';
 
 const list = document.getElementById('list') as HTMLUListElement;
 const empty = document.getElementById('empty') as HTMLParagraphElement;
@@ -253,6 +253,25 @@ function renderEditCard(b: Bookmark): HTMLElement {
   url.value = b.url;
   url.title = 'Si cambias la URL, la nota se mueve a la carpeta de esa página';
 
+  // carpeta manual: escribe un nombre (o elige uno existente); vacío = carpeta automática por sitio
+  const folder = document.createElement('input');
+  folder.type = 'text';
+  folder.placeholder = 'Carpeta (opcional; vacío = automática)';
+  folder.value = b.folder ?? '';
+  folder.setAttribute('list', 'folder-names');
+  const names = document.createElement('datalist');
+  names.id = 'folder-names';
+  const seen = new Set<string>();
+  for (const x of all) {
+    const n = x.folder?.trim();
+    if (n && !seen.has(n.toLowerCase())) {
+      seen.add(n.toLowerCase());
+      const o = document.createElement('option');
+      o.value = n;
+      names.append(o);
+    }
+  }
+
   const err = document.createElement('div');
   err.className = 'edit-err';
   err.hidden = true;
@@ -284,7 +303,7 @@ function renderEditCard(b: Bookmark): HTMLElement {
       err.hidden = false;
       return;
     }
-    await updateBookmark(b.id, { note: n, url: u, title: title.value.trim() || null });
+    await updateBookmark(b.id, { note: n, url: u, title: title.value.trim() || null, folder: folder.value.trim().slice(0, 60) || null });
     close();
   };
   card.addEventListener('keydown', (e) => {
@@ -292,7 +311,7 @@ function renderEditCard(b: Bookmark): HTMLElement {
     else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save.click();
   });
 
-  card.append(title, note, url, err, actions);
+  card.append(title, note, url, folder, names, err, actions);
   setTimeout(() => note.focus(), 0);
   return card;
 }
@@ -363,7 +382,8 @@ function renderFolder(f: Folder): HTMLElement {
       pickAll,
     );
   });
-  return renderDetails(f.key, `📁 ${folderLabel(f.key)}`, folderLabel(f.key), f.items.length, [
+  const name = f.label ?? folderLabel(f.key);
+  return renderDetails(f.key, `${f.custom ? '🗂️' : '📁'} ${name}`, name, f.items.length, [
     ...subs,
     ...f.rest.map((b) => renderCard(b)),
   ]);
@@ -483,7 +503,7 @@ document.getElementById('export-db')!.addEventListener('click', async () => {
     const SQL = await loadSqlJs();
     // misma carpeta que ves en el popup, para poder filtrar por ella en el gestor
     const folderById = new Map<string, string>();
-    for (const f of groupBookmarks(items).folders) for (const b of f.items) folderById.set(b.id, f.key);
+    for (const f of groupBookmarks(items).folders) for (const b of f.items) folderById.set(b.id, f.label ?? f.key);
     const bytes = buildDb(SQL, items, folderById);
     download(new Blob([bytes as BlobPart], { type: 'application/vnd.sqlite3' }), `note-bookmarks-${today()}.db`);
     say(`Exportadas ${items.length} notas a SQLite (.db).`, 'ok');
@@ -560,7 +580,7 @@ settingsBtn.addEventListener('click', () => {
 settingsItem.getValue().then((s) => modeRadios.forEach((r) => (r.checked = r.value === s.imageMode)));
 modeRadios.forEach((r) =>
   r.addEventListener('change', async () => {
-    if (r.checked) await settingsItem.setValue({ imageMode: r.value as ImageMode });
+    if (r.checked) await updateSettings({ imageMode: r.value as ImageMode });
   }),
 );
 if (new URLSearchParams(location.search).has('settings')) openSettings();

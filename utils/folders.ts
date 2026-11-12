@@ -13,6 +13,9 @@ export const MIN_NOTES_FOR_FOLDER = 3;
 
 const OTHER = 'otros';
 
+/** Prefijo de la clave de las carpetas elegidas a mano (las automáticas son host o host/sección). */
+export const CUSTOM_PREFIX = 'custom:';
+
 /** Cuántas notas de UNA misma página hacen falta para que sea subcarpeta dentro de su carpeta. */
 export const MIN_NOTES_FOR_SUBFOLDER = 2;
 
@@ -25,6 +28,8 @@ export interface SubFolder {
 }
 export interface Folder {
   key: string;
+  label?: string; // nombre de una carpeta manual (las automáticas se muestran con folderLabel)
+  custom?: boolean; // true = carpeta creada/elegida por el usuario
   items: Bookmark[]; // TODAS las notas de la carpeta (incluye las de subcarpetas), más recientes primero
   subfolders: SubFolder[]; // páginas con muchas notas
   rest: Bookmark[]; // notas de la carpeta que no están en ninguna subcarpeta
@@ -115,6 +120,7 @@ export function folderKeys(url: string): { specific: string; host: string } {
 }
 
 export function folderLabel(key: string): string {
+  if (key.startsWith(CUSTOM_PREFIX)) return key.slice(CUSTOM_PREFIX.length);
   return key.replace(/\?udm=2$/, ' · imágenes').replace(/\?udm=(\d+)$/, ' · udm $1');
 }
 
@@ -194,7 +200,22 @@ function splitSubfolders(sorted: Bookmark[], min = MIN_NOTES_FOR_SUBFOLDER) {
   return { subfolders, rest: sorted.filter((b) => !inSub.has(b.id)) };
 }
 
-export function groupBookmarks(items: Bookmark[], min = MIN_NOTES_FOR_FOLDER): Grouped {
+export function groupBookmarks(all: Bookmark[], min = MIN_NOTES_FOR_FOLDER): Grouped {
+  // carpetas elegidas a mano: mandan sobre el agrupado automático (aunque tengan una sola nota)
+  const manual = new Map<string, { label: string; arr: Bookmark[] }>();
+  const items: Bookmark[] = [];
+  for (const b of [...all].sort(newestFirst)) {
+    const name = b.folder?.trim();
+    if (!name) {
+      items.push(b);
+      continue;
+    }
+    const key = CUSTOM_PREFIX + name.toLowerCase(); // "Tesis" y "tesis" son la misma carpeta
+    const g = manual.get(key);
+    if (g) g.arr.push(b);
+    else manual.set(key, { label: name, arr: [b] }); // el nombre lo da la nota más reciente
+  }
+
   const keyed = items.map((b) => ({ b, ...folderKeys(b.url) }));
 
   // 1) carpeta específica (host + sección) si alcanza el mínimo
@@ -223,6 +244,11 @@ export function groupBookmarks(items: Bookmark[], min = MIN_NOTES_FOR_FOLDER): G
     const { subfolders, rest } = splitSubfolders(arr);
     return { key, items: arr, subfolders, rest, latest: time(arr[0]) };
   });
+  for (const [key, g] of manual) {
+    const { subfolders, rest } = splitSubfolders(g.arr);
+    folders.push({ key, label: g.label, custom: true, items: g.arr, subfolders, rest, latest: time(g.arr[0]) });
+  }
+
   folders.sort((a, b) => b.latest - a.latest);
   loose.sort(newestFirst);
 

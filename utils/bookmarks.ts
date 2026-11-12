@@ -20,6 +20,7 @@ export interface Bookmark {
   fragment?: string | null; // directiva del text fragment (#:~:text=...) calculada al seleccionar la cita (opcional)
   imageSrcs?: string[] | null; // URL original de cada imagen de `images` ('' si no es http); sirve para ubicarlas en la página
   anchor?: Anchor | null; // posición en la página al guardar; respaldo para volver a ubicar la nota
+  folder?: string | null; // carpeta elegida a mano (opcional; sin ella la carpeta se calcula sola por el sitio)
 }
 
 export const bookmarksItem = storage.defineItem<Bookmark[]>('local:bookmarks', {
@@ -37,6 +38,7 @@ export interface NewBookmark {
   fragment?: string | null;
   imageSrcs?: string[] | null;
   anchor?: Anchor | null;
+  folder?: string | null;
 }
 
 const time = (b: Bookmark) => Date.parse(b.date) || 0;
@@ -56,6 +58,7 @@ export async function addBookmark(input: NewBookmark): Promise<Bookmark> {
     fragment: input.quote ? (input.fragment ?? null) : null,
     imageSrcs: input.images?.length ? (input.imageSrcs ?? null) : null,
     anchor: input.anchor ?? null,
+    folder: input.folder?.trim().slice(0, 60) || null,
   };
   const list = await bookmarksItem.getValue();
   await bookmarksItem.setValue([bookmark, ...list]);
@@ -83,7 +86,7 @@ export async function applyImagePatches(patches: Record<string, string[]>) {
   await bookmarksItem.setValue(list.map((b) => (patches[b.id] ? { ...b, images: patches[b.id] } : b)));
 }
 
-export type BookmarkPatch = Partial<Pick<Bookmark, 'note' | 'url' | 'title'>>;
+export type BookmarkPatch = Partial<Pick<Bookmark, 'note' | 'url' | 'title' | 'folder'>>;
 
 /** Edita texto / título / URL. Cambiar la URL equivale a "mover" la nota a otra carpeta o subcarpeta. */
 export async function updateBookmark(id: string, patch: BookmarkPatch) {
@@ -132,5 +135,6 @@ export function combineBookmarks(parts: Bookmark[]): Bookmark | string {
     fragment: mainQuote ? (sorted.find((b) => b.quote)?.fragment ?? null) : null,
     imageSrcs: allImages.length ? allSrcs : null,
     anchor: sorted.find((b) => b.anchor)?.anchor ?? null,
+    folder: sorted.find((b) => b.folder)?.folder ?? null,
   };
 }

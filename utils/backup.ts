@@ -57,6 +57,7 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
     fragment: typeof o.fragment === 'string' && FRAGMENT_OK.test(o.fragment) ? o.fragment : null,
     imageSrcs: images.length ? imageSrcs : null,
     anchor,
+    folder: typeof o.folder === 'string' && o.folder.trim() ? o.folder.trim().slice(0, 60) : null,
   };
 }
 

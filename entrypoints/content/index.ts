@@ -1,7 +1,7 @@
 import { addBookmark, bookmarksItem, type Anchor } from '@/utils/bookmarks';
 import { notesForPage } from '@/utils/folders';
 import { blobToJpegDataUrl } from '@/utils/image';
-import { settingsItem, type ImageMode } from '@/utils/settings';
+import { settingsItem, updateSettings, type ImageMode } from '@/utils/settings';
 import { fragmentFromSegments, normalizeQuote } from '@/utils/quote';
 import { openEditor } from './editor';
 import { findImages, locateNote } from './locate';
@@ -50,6 +50,17 @@ async function loadImage(src: string, mode: ImageMode): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Comando de carpeta al inicio de la nota: "/news texto" guarda ESA nota en la carpeta "news" (se crea si no existe).
+ * Con espacios: /"mi tesis" texto. Solo "/news" cambia la carpeta activa. "/usr/bin" no cuenta (no hay espacio tras el nombre).
+ */
+const FOLDER_CMD = /^\/(?:"([^"]{1,60})"|([^\s/"]{1,60}))(?=\s|$)\s*([\s\S]*)$/;
+function parseFolderCmd(raw: string): { folder: string | null; note: string } {
+  const m = FOLDER_CMD.exec(raw.trimStart());
+  if (!m) return { folder: null, note: raw.trim() };
+  return { folder: (m[1] ?? m[2]).trim(), note: m[3].trim() };
 }
 
 const httpSrc = (s: string) => (/^https?:/i.test(s) ? s : '');
@@ -256,14 +267,30 @@ export default defineContentScript({
         }
         textarea::placeholder { color: var(--muted); }
 
-        .cam {
+        .cam, .fbtn {
           flex: none; display: inline-flex; align-items: center; gap: 6px;
           padding: 5px 10px; border: 0; border-radius: 999px; cursor: pointer;
           background: var(--chip); color: var(--fg);
           font: 500 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
           transition: background .15s, color .15s, transform .1s;
         }
-        .cam:hover { background: var(--chip-hover); color: var(--accent); }
+        .cam:hover, .fbtn:hover { background: var(--chip-hover); color: var(--accent); }
+        .fbtn.on { color: var(--accent); }
+        .fbtn .fl { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Selector de carpeta (Tab) */
+        .fpick { padding: 4px 6px 10px; }
+        .fpick[hidden] { display: none; }
+        .finput { width: 100%; height: 36px; padding: 0 12px; border: 0; outline: 0; border-radius: 10px;
+                  background: var(--field); color: inherit; caret-color: var(--accent);
+                  font: 400 14px/36px -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+        .finput::placeholder { color: var(--muted); }
+        .fopts { margin-top: 6px; max-height: 200px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+        .fopt { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; border-radius: 8px;
+                font-size: 13px; cursor: pointer; }
+        .fopt small { color: var(--muted); }
+        .fopt.sel, .fopt:hover { background: var(--chip-hover); }
+        .fhint { padding: 6px 10px; font-size: 12px; color: var(--muted); }
         .cam:active { transform: scale(.96); }
         .cam svg { width: 14px; height: 14px; }
 
@@ -314,11 +341,16 @@ export default defineContentScript({
             <div class="ithumbs"></div>
             <span class="istatus"></span>
           </div>
+          <div class="fpick" hidden>
+            <input class="finput" placeholder="Buscar o crear carpeta…" spellcheck="false" />
+            <div class="fopts"></div>
+          </div>
           <div class="field">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
             </svg>
-            <textarea rows="1" placeholder="Escribe una nota…" spellcheck="false"></textarea>
+            <textarea rows="1" placeholder="Escribe una nota…  ·  /carpeta nota" spellcheck="false"></textarea>
+            <button class="fbtn" title="Carpeta donde se guarda (Tab)">📁 <span class="fl">Carpeta</span></button>
             <button class="cam" title="Capturar una región de la página">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/>
@@ -359,8 +391,13 @@ export default defineContentScript({
     const imgsBox = $<HTMLDivElement>('.imgs');
     const imgThumbs = $<HTMLDivElement>('.ithumbs');
     const imgStatus = $<HTMLSpanElement>('.istatus');
+    const fpick = $<HTMLDivElement>('.fpick');
+    const fInput = $<HTMLInputElement>('.finput');
+    const fOpts = $<HTMLDivElement>('.fopts');
+    const folderBtn = $<HTMLButtonElement>('.fbtn');
+    const folderLabelEl = $<HTMLSpanElement>('.fl');
 
-    const PLACEHOLDER = 'Escribe una nota…';
+    const PLACEHOLDER = 'Escribe una nota…  ·  /carpeta nota';
     const PLACEHOLDER_QUOTE = 'Añade una nota sobre esta cita…';
 
     // Texto de la página al que se refiere la nota (se captura al abrir con Alt+C)
@@ -375,6 +412,7 @@ export default defineContentScript({
     const KEYS_HTML = `
       <span><kbd>↵</kbd> guardar</span>
       <span><kbd>⇧ ↵</kbd> salto</span>
+      <span><kbd>⇥</kbd> carpeta</span>
       <span><kbd>esc</kbd> cerrar</span>`;
     const setKeys = () => (keys.innerHTML = KEYS_HTML);
     setKeys();
@@ -457,7 +495,147 @@ export default defineContentScript({
       anchor = null;
       images = [];
       renderImages();
+      refreshFolderBtn();
     };
+
+    // ---- carpeta manual (Tab o botón 📁): elegir una existente o crear otra; queda como carpeta activa ----
+    let activeFolder: string | null = null;
+    let folderNames: { name: string; count: number; latest: number }[] = [];
+    type FolderOpt = { label: string; sub?: string; value: string | null };
+    let fopts: FolderOpt[] = [];
+    let fsel = 0;
+
+    const refreshFolderBtn = () => {
+      const inline = parseFolderCmd(textarea.value).folder; // "/carpeta" escrito al inicio de la nota
+      const shown = inline ?? activeFolder;
+      folderLabelEl.textContent = shown ?? 'Carpeta';
+      folderBtn.classList.toggle('on', !!shown);
+      folderBtn.title = inline
+        ? `Esta nota irá a «${inline}»`
+        : activeFolder
+          ? `Guardando en «${activeFolder}» (Tab para cambiar)`
+          : 'Carpeta donde se guarda (Tab)';
+    };
+    const setActiveFolder = async (name: string | null) => {
+      activeFolder = name;
+      refreshFolderBtn();
+      await updateSettings({ activeFolder: name });
+    };
+    settingsItem.getValue().then((s) => {
+      activeFolder = s.activeFolder ?? null;
+      refreshFolderBtn();
+    });
+    settingsItem.watch((s) => {
+      activeFolder = s?.activeFolder ?? null; // se sincroniza entre pestañas
+      refreshFolderBtn();
+    });
+
+    const loadFolderNames = async () => {
+      const m = new Map<string, { name: string; count: number; latest: number }>();
+      for (const b of await bookmarksItem.getValue()) {
+        const n = b.folder?.trim();
+        if (!n) continue;
+        const k = n.toLowerCase();
+        const t = Date.parse(b.date) || 0;
+        const g = m.get(k);
+        if (!g) m.set(k, { name: n, count: 1, latest: t });
+        else {
+          g.count++;
+          if (t > g.latest) {
+            g.latest = t;
+            g.name = n;
+          }
+        }
+      }
+      // carpeta recién creada que aún no tiene notas
+      if (activeFolder && !m.has(activeFolder.toLowerCase())) {
+        m.set(activeFolder.toLowerCase(), { name: activeFolder, count: 0, latest: Infinity });
+      }
+      folderNames = [...m.values()].sort((a, b) => b.latest - a.latest);
+    };
+
+    const renderFolderOpts = () => {
+      if (!fopts.length) {
+        const h = document.createElement('div');
+        h.className = 'fhint';
+        h.textContent = 'Escribe un nombre para crear una carpeta.';
+        fOpts.replaceChildren(h);
+        return;
+      }
+      fOpts.replaceChildren(
+        ...fopts.map((o, i) => {
+          const d = document.createElement('div');
+          d.className = 'fopt' + (i === fsel ? ' sel' : '');
+          const l = document.createElement('span');
+          const current = o.value !== null && activeFolder?.toLowerCase() === o.value.toLowerCase();
+          l.textContent = (current ? '✓ ' : '') + o.label;
+          d.append(l);
+          if (o.sub) {
+            const s = document.createElement('small');
+            s.textContent = o.sub;
+            d.append(s);
+          }
+          d.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            chooseFolder(o);
+          });
+          return d;
+        }),
+      );
+      fOpts.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
+    };
+
+    const buildFolderOpts = () => {
+      const q = fInput.value.trim();
+      const ql = q.toLowerCase();
+      fopts = folderNames
+        .filter((f) => f.name.toLowerCase().includes(ql))
+        .map((f) => ({ label: f.name, sub: f.count ? `${f.count} nota${f.count === 1 ? '' : 's'}` : 'nueva', value: f.name }));
+      if (q && !folderNames.some((f) => f.name.toLowerCase() === ql)) {
+        fopts.push({ label: `➕ Crear «${q.slice(0, 60)}»`, value: q.slice(0, 60) });
+      }
+      if (activeFolder) fopts.push({ label: 'Sin carpeta fija (automática)', value: null });
+      fsel = Math.max(0, Math.min(fsel, fopts.length - 1));
+      renderFolderOpts();
+    };
+
+    const closeFolderPicker = () => {
+      fpick.hidden = true;
+      textarea.focus();
+    };
+    const openFolderPicker = async () => {
+      fpick.hidden = false;
+      fInput.value = '';
+      fsel = 0;
+      await loadFolderNames();
+      buildFolderOpts();
+      fInput.focus();
+    };
+    const chooseFolder = async (o: FolderOpt) => {
+      closeFolderPicker();
+      await setActiveFolder(o.value);
+    };
+
+    folderBtn.addEventListener('click', () => (fpick.hidden ? openFolderPicker() : closeFolderPicker()));
+    for (const ev of ['keydown', 'keyup', 'keypress'] as const) fInput.addEventListener(ev, (e) => e.stopPropagation());
+    fInput.addEventListener('input', () => {
+      fsel = 0;
+      buildFolderOpts();
+    });
+    fInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' || e.key === 'Tab') {
+        e.preventDefault();
+        closeFolderPicker();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!fopts.length) return;
+        fsel = (fsel + (e.key === 'ArrowDown' ? 1 : -1) + fopts.length) % fopts.length;
+        renderFolderOpts();
+      } else if (e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault();
+        if (fopts[fsel]) chooseFolder(fopts[fsel]);
+      }
+    });
 
     // Lista de notas que ya existen en esta página (se abre con Alt+S)
     let prevShown = false;
@@ -529,6 +707,7 @@ export default defineContentScript({
     };
     const hide = () => {
       host.style.display = 'none';
+      fpick.hidden = true;
       prevShown = false;
       prevBox.hidden = true;
     };
@@ -577,13 +756,24 @@ export default defineContentScript({
 
     const save = async () => {
       await pending; // espera a que terminen de bajar las imágenes
-      const note = textarea.value.trim();
+      const cmd = parseFolderCmd(textarea.value); // "/carpeta nota": carpeta solo para esta nota
+      const note = cmd.note;
+      if (cmd.folder && !note && !quote && !images.length) {
+        // solo "/carpeta" + Enter: cambia la carpeta activa
+        textarea.value = '';
+        autosize();
+        syncActive();
+        await setActiveFolder(cmd.folder);
+        flash(`📁 ${cmd.folder}`, 'ok');
+        return;
+      }
       if (!note && !quote && !images.length) return; // se permite guardar solo la cita o solo imágenes
       await addBookmark({
         note,
         url: location.href,
         quote,
         fragment,
+        folder: cmd.folder ?? activeFolder,
         images: images.map((i) => i.data),
         imageSrcs: images.map((i) => httpSrc(i.src)),
         anchor: anchor ?? viewportAnchor(),
@@ -620,10 +810,16 @@ export default defineContentScript({
     textarea.addEventListener('input', () => {
       autosize();
       syncActive();
+      refreshFolderBtn();
     });
     textarea.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         hide();
+        return;
+      }
+      if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        openFolderPicker(); // Tab = elegir / crear carpeta
         return;
       }
       if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
@@ -664,12 +860,14 @@ export default defineContentScript({
         return;
       }
       await pending;
+      const cmd = parseFolderCmd(result.note);
       await addBookmark({
-        note: result.note,
+        note: cmd.note,
         url: location.href,
         image: result.image,
         quote,
         fragment,
+        folder: cmd.folder ?? activeFolder,
         images: images.map((i) => i.data),
         imageSrcs: images.map((i) => httpSrc(i.src)),
         anchor:

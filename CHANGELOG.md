@@ -23,6 +23,25 @@
 - Las imágenes ahora se encuentran aunque el sitio cambie de subdominio de CDN (t1/t3/t5…), de formato (`.jpg` / `.jpg.webp`) o de parámetros entre cargas: se comparan por varias claves (host+ruta, ruta, carpeta/archivo sin extensión).
 - Si la imagen aún no tiene tamaño (carga perezosa), el marcador usa su contenedor visible; y la vista se reajusta tras unos segundos si el layout se movió.
 
+### Agregado (ajustes de imágenes)
+- **Panel de Ajustes (⚙)** en el historial con dos modos para las imágenes de las notas:
+  - **Solo enlace (por defecto):** se guarda únicamente la URL de la imagen. Casi no ocupa espacio y el historial sigue rápido con miles de notas. Necesita internet y que el sitio no borre la imagen.
+  - **Descargar (offline):** se guarda la imagen dentro de la extensión (comportamiento anterior).
+- **Descargar ahora las imágenes de mis notas:** convierte los enlaces en copias offline (4 en paralelo, se guarda por tandas, muestra el progreso).
+- **Liberar espacio:** borra las copias descargadas y deja solo los enlaces (si la nota conoce la URL original).
+- Contador de uso: nº de notas, imágenes descargadas / solo enlace y espacio aproximado.
+- `images` de una nota puede contener URLs http(s) además de dataURLs. Si una imagen remota no carga (sin internet, borrada o con anti-hotlink) el historial muestra "🖼 no disponible".
+- Exportar a SQLite: `bookmark_images.image` / `image_mime` pueden ser NULL y hay una columna nueva `source_url`.
+- Archivo nuevo: `settings.ts` (en `utils/`).
+
+### Agregado (carpetas manuales)
+- **Atajo de carpeta en el cuadro de nota:** `Tab` (o el botón 📁) abre un selector para elegir una carpeta existente o crear una nueva escribiendo su nombre (↑ ↓ navegan, Enter elige, Esc cierra).
+- **Carpeta activa:** la elegida se conserva (también entre pestañas) y todas las notas nuevas se guardan en ella hasta que la cambies o elijas "Sin carpeta fija". El botón muestra su nombre.
+- **Comando `/carpeta` dentro de la nota:** escribir `/news texto` al inicio guarda esa nota en la carpeta «news» (se crea si no existe) sin cambiar la carpeta activa; `/"mi tesis" texto` para nombres con espacios; solo `/news` + Enter cambia la carpeta activa. El botón 📁 muestra el destino mientras escribes. También funciona con el botón Región. Las notas sin comando siguen el flujo normal.
+- Las carpetas manuales aparecen en el historial con 🗂️, mandan sobre el agrupado automático (aunque tengan una sola nota) y conservan las subcarpetas por página. "Tesis" y "tesis" son la misma carpeta.
+- Al editar una nota en el historial se puede cambiar su carpeta (vacío = automática).
+- Campo nuevo opcional `folder` en la nota (se exporta/importa y se junta al fusionar). El `.db` usa el nombre de la carpeta manual en la columna `folder`.
+
 ### Cambiado
 - **Enlace a la cita (text fragment):** ahora el fragmento se calcula al seleccionar, partiendo el texto por bloques de la página, y se guarda en el nuevo campo opcional `fragment`. Usa la forma `inicio,fin`, así la cita se resalta aunque cruce varios bloques (etiquetas `inline-block`/`flex`, como en nhentai.net). Las notas viejas siguen usando el método anterior.
 - Modelo `Bookmark`: nuevo campo opcional `images?: string[] | null`. Las notas anteriores siguen funcionando sin migración.
@@ -40,5 +59,5 @@
 - Las imágenes dentro de Shadow DOM no se detectan en la selección múltiple (el clic derecho directo sí funciona).
 
 ### Archivos modificados
-`background.ts`, `index.ts` (content script), `bookmarks.ts`, `backup.ts`, `sqlite.ts`, `main.ts`, `style.css`, `quote.ts`, `locate.ts` (nuevo, en el content script)
+`background.ts`, `index.ts` (content script), `bookmarks.ts`, `backup.ts`, `sqlite.ts`, `main.ts`, `style.css`, `quote.ts`, `index.html`, `folders.ts`, `locate.ts` (nuevo, en el content script)
 **Nuevo:** `utils/image.ts`

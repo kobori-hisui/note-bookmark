@@ -8,8 +8,15 @@ export type ImageMode = 'url' | 'offline';
 
 export interface Settings {
   imageMode: ImageMode;
+  /** Carpeta manual donde se guardan las notas nuevas (null = automática). Se conserva entre notas y pestañas. */
+  activeFolder?: string | null;
 }
 
 export const settingsItem = storage.defineItem<Settings>('local:settings', {
-  fallback: { imageMode: 'url' },
+  fallback: { imageMode: 'url', activeFolder: null },
 });
+
+/** Cambia solo algunos ajustes sin pisar el resto. */
+export async function updateSettings(patch: Partial<Settings>) {
+  await settingsItem.setValue({ ...(await settingsItem.getValue()), ...patch });
+}
