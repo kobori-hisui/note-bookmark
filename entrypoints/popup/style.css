@@ -79,3 +79,18 @@ img.fav { flex: none; width: 14px; height: 14px; max-height: none; margin: 0; bo
 /* imágenes de la página guardadas con clic derecho */
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; margin-bottom: 6px; }
 .gallery img { height: 90px; max-height: none; margin: 0; object-fit: cover; }
+
+/* visor de imágenes */
+body.lb-open { min-height: 520px; }
+.lightbox { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.94); }
+.lightbox img { width: auto; height: auto; max-width: 100%; max-height: 100%; margin: 0; border-radius: 0; background: none; cursor: zoom-out; object-fit: contain; }
+.lb-btn { position: absolute; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%;
+  background: rgba(40,40,40,.85); color: #eee; font-size: 18px; line-height: 1; }
+.lb-btn:hover { background: #e11d1d; color: #fff; }
+.lb-prev { left: 8px; top: 50%; transform: translateY(-50%); }
+.lb-next { right: 8px; top: 50%; transform: translateY(-50%); }
+.lb-close { top: 8px; right: 8px; font-size: 13px; }
+.lb-count { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px;
+  background: rgba(40,40,40,.85); color: #ddd; font-size: 11px; }
+.lb-count:empty { display: none; }

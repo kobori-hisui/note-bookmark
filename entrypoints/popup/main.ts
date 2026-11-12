@@ -38,9 +38,63 @@ const rerender = () => render(all);
 
 // ---- tarjeta de nota ----
 
-async function openDataUrl(url: string) {
-  const blob = await (await fetch(url)).blob();
-  window.open(URL.createObjectURL(blob), '_blank');
+/** Visor de imágenes dentro del popup: ← → para navegar, Esc / clic fuera / clic en la imagen para cerrar. */
+function openLightbox(srcs: string[], start = 0) {
+  let i = start;
+  const n = srcs.length;
+  const ov = document.createElement('div');
+  ov.className = 'lightbox';
+
+  const img = document.createElement('img');
+  const counter = document.createElement('span');
+  counter.className = 'lb-count';
+  const mk = (cls: string, text: string, title: string) => {
+    const b = document.createElement('button');
+    b.className = `lb-btn ${cls}`;
+    b.textContent = text;
+    b.title = title;
+    return b;
+  };
+  const prev = mk('lb-prev', '‹', 'Anterior (←)');
+  const next = mk('lb-next', '›', 'Siguiente (→)');
+  const closeBtn = mk('lb-close', '✕', 'Cerrar (Esc)');
+  prev.hidden = next.hidden = n < 2;
+
+  const show = () => {
+    img.src = srcs[i];
+    counter.textContent = n > 1 ? `${i + 1} / ${n}` : '';
+  };
+  const go = (d: number) => {
+    i = (i + d + n) % n;
+    show();
+  };
+  const close = () => {
+    ov.remove();
+    document.body.classList.remove('lb-open');
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    } else if (e.key === 'ArrowLeft' && n > 1) go(-1);
+    else if (e.key === 'ArrowRight' && n > 1) go(1);
+  };
+
+  prev.onclick = () => go(-1);
+  next.onclick = () => go(1);
+  closeBtn.onclick = close;
+  img.onclick = close;
+  ov.onclick = (e) => {
+    if (e.target === ov) close();
+  };
+  document.addEventListener('keydown', onKey, true);
+
+  ov.append(img, prev, next, counter, closeBtn);
+  document.body.classList.add('lb-open'); // da altura al popup aunque haya pocas notas
+  document.body.append(ov);
+  show();
 }
 
 function renderCard(b: Bookmark, showTitle = true): HTMLElement {
@@ -89,22 +143,23 @@ function renderCard(b: Bookmark, showTitle = true): HTMLElement {
   if (b.image) {
     const img = document.createElement('img');
     img.src = b.image;
-    img.title = 'Abrir imagen completa';
-    img.onclick = () => openDataUrl(b.image!);
+    img.title = 'Ver imagen';
+    img.onclick = () => openLightbox([b.image!]);
     card.append(img);
   }
 
   if (b.images?.length) {
     const gallery = document.createElement('div');
     gallery.className = 'gallery';
-    for (const src of b.images) {
+    const all = b.images;
+    all.forEach((src, idx) => {
       const im = document.createElement('img');
       im.src = src;
       im.loading = 'lazy';
-      im.title = 'Abrir imagen completa';
-      im.onclick = () => openDataUrl(src);
+      im.title = 'Ver imagen';
+      im.onclick = () => openLightbox(all, idx);
       gallery.append(im);
-    }
+    });
     card.append(gallery);
   }
 
