@@ -27,7 +27,7 @@ function collectImageSrcs(clicked?: string): string[] {
   if (sel && !sel.isCollapsed) {
     for (const img of document.images) {
       if (img.clientWidth < 40 || img.clientHeight < 40) continue; // íconos y píxeles de seguimiento
-      if (!sel.containsNode(img, true)) continue;
+      if (!sel.containsNode(img, false)) continue; // solo las que están COMPLETAMENTE dentro (no las que rozan el borde)
       const s = img.currentSrc || img.src;
       if (s && !out.includes(s)) out.push(s);
     }
