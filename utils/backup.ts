@@ -32,7 +32,9 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
   if (typeof o.note !== 'string' || typeof o.date !== 'string') return null;
   if (typeof o.url !== 'string' || !isSafeUrl(o.url)) return null;
   const images = Array.isArray(o.images)
-    ? o.images.filter((s): s is string => typeof s === 'string' && s.startsWith('data:image/'))
+    ? o.images.filter(
+        (s): s is string => typeof s === 'string' && (s.startsWith('data:image/') || /^https?:\/\//i.test(s)),
+      )
     : [];
   const rawAnchor = o.anchor as { y?: unknown; h?: unknown } | null | undefined;
   const anchor =

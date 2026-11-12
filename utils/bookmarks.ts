@@ -16,7 +16,7 @@ export interface Bookmark {
   quote?: string | null; // texto seleccionado en la página al que se refiere la nota (opcional; notas viejas no lo tienen)
   title?: string | null; // document.title al guardar (opcional; notas viejas no lo tienen)
   favicon?: string | null; // URL del ícono del sitio (opcional)
-  images?: string[] | null; // imágenes de la página (dataURL JPEG) guardadas con clic derecho (opcional)
+  images?: string[] | null; // imágenes de la página guardadas con clic derecho: dataURL JPEG (offline) o URL http(s) (solo enlace)
   fragment?: string | null; // directiva del text fragment (#:~:text=...) calculada al seleccionar la cita (opcional)
   imageSrcs?: string[] | null; // URL original de cada imagen de `images` ('' si no es http); sirve para ubicarlas en la página
   anchor?: Anchor | null; // posición en la página al guardar; respaldo para volver a ubicar la nota
@@ -75,6 +75,12 @@ export async function replaceBookmarks(removeIds: string[], add: Bookmark[]) {
   const rm = new Set(removeIds);
   const list = await bookmarksItem.getValue();
   await bookmarksItem.setValue(sortNewest([...list.filter((b) => !rm.has(b.id)), ...add]));
+}
+
+/** Cambia solo las imágenes de varias notas en una sola escritura (descargar / liberar espacio). */
+export async function applyImagePatches(patches: Record<string, string[]>) {
+  const list = await bookmarksItem.getValue();
+  await bookmarksItem.setValue(list.map((b) => (patches[b.id] ? { ...b, images: patches[b.id] } : b)));
 }
 
 export type BookmarkPatch = Partial<Pick<Bookmark, 'note' | 'url' | 'title'>>;

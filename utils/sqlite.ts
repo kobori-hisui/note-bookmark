@@ -33,8 +33,9 @@ CREATE INDEX idx_bookmarks_host ON bookmarks(host);
 CREATE TABLE bookmark_images (
   bookmark_id TEXT NOT NULL REFERENCES bookmarks(id),
   position    INTEGER NOT NULL,
-  image       BLOB NOT NULL,
-  image_mime  TEXT NOT NULL,
+  image       BLOB,          -- NULL si la nota guardó solo el enlace
+  image_mime  TEXT,
+  source_url  TEXT,          -- dirección original de la imagen
   PRIMARY KEY (bookmark_id, position)
 );
 PRAGMA user_version = 2;
@@ -80,7 +81,7 @@ export function buildDb(
     const stmt = db.prepare(
       'INSERT INTO bookmarks (id, url, note, date, image, image_mime, quote, title, host, folder) VALUES (?,?,?,?,?,?,?,?,?,?)',
     );
-    const imgStmt = db.prepare('INSERT INTO bookmark_images (bookmark_id, position, image, image_mime) VALUES (?,?,?,?)');
+    const imgStmt = db.prepare('INSERT INTO bookmark_images (bookmark_id, position, image, image_mime, source_url) VALUES (?,?,?,?,?)');
     try {
       for (const b of items) {
         const img = dataUrlToImage(b.image);
@@ -98,8 +99,9 @@ export function buildDb(
           folderById.get(b.id) ?? null,
         ]);
         (b.images ?? []).forEach((d, i) => {
-          const x = dataUrlToImage(d);
-          if (x) imgStmt.run([b.id, i, x.bytes, x.mime]);
+          const x = dataUrlToImage(d); // descargada (dataURL) o null si es solo un enlace
+          const url = b.imageSrcs?.[i] || (/^https?:/i.test(d) ? d : null);
+          if (x || url) imgStmt.run([b.id, i, x ? x.bytes : null, x ? x.mime : null, url]);
         });
       }
     } finally {

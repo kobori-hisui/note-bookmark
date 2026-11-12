@@ -94,3 +94,16 @@ body.lb-open { min-height: 520px; }
 .lb-count { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px;
   background: rgba(40,40,40,.85); color: #ddd; font-size: 11px; }
 .lb-count:empty { display: none; }
+
+/* ajustes */
+#settings-panel { margin: 0 0 10px; padding: 10px; background: #2a2a2a; border: 1px solid #444; border-radius: 8px; font-size: 12px; }
+#settings-panel[hidden] { display: none; }
+#settings-panel h2 { font-size: 13px; margin: 0 0 8px; }
+#settings-panel .opt { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; cursor: pointer; }
+#settings-panel small { color: #999; }
+.set-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.set-actions button { color: #ddd; background: #2f2f2f; border: 1px solid #444; border-radius: 6px; padding: 5px 9px; font-size: 12px; text-align: left; }
+.set-actions button:hover:not(:disabled) { border-color: #e11d1d; }
+.set-actions button:disabled { opacity: .5; cursor: default; }
+#storage-info { margin: 8px 0 0; color: #999; }
+.imgfail { display: grid; place-items: center; height: 90px; border-radius: 6px; background: #111; color: #777; font-size: 11px; text-align: center; }

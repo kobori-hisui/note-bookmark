@@ -13,8 +13,25 @@
         <button id="export-db" title="Descargar una base de datos SQLite (.db) que abre cualquier gestor">↓ .db</button>
         <button id="import" title="Importar notas desde un JSON">↑ Importar</button>
         <button id="select" title="Seleccionar varias notas de una misma página para fusionarlas">☑ Seleccionar</button>
+        <button id="settings" title="Ajustes: imágenes como enlace u offline">⚙</button>
       </div>
     </header>
+    <section id="settings-panel" hidden>
+      <h2>Imágenes de las notas</h2>
+      <label class="opt">
+        <input type="radio" name="imgmode" value="url" />
+        <span><b>Solo enlace</b> (recomendado)<br /><small>Guarda la dirección de la imagen. Casi no ocupa espacio y el historial se mantiene rápido, aunque tengas miles de notas. Necesita internet y que el sitio no la borre.</small></span>
+      </label>
+      <label class="opt">
+        <input type="radio" name="imgmode" value="offline" />
+        <span><b>Descargar (offline)</b><br /><small>Guarda la imagen dentro de la extensión (~150–400 KB cada una). Se ve sin internet, pero con muchas notas el historial se vuelve pesado y lento.</small></span>
+      </label>
+      <div class="set-actions">
+        <button id="dl-all" title="Descarga las imágenes que hoy son solo enlace (abre la vista en pestaña)">⬇ Descargar ahora las imágenes de mis notas</button>
+        <button id="strip-all" title="Borra las copias descargadas y deja solo los enlaces">🗑 Liberar espacio (dejar solo enlaces)</button>
+      </div>
+      <p id="storage-info"></p>
+    </section>
     <p id="status" hidden></p>
     <div id="bulk" hidden>
       <span id="bulk-count"></span>

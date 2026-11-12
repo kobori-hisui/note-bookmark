@@ -1,6 +1,7 @@
 import { addBookmark, bookmarksItem, type Anchor } from '@/utils/bookmarks';
 import { notesForPage } from '@/utils/folders';
 import { blobToJpegDataUrl } from '@/utils/image';
+import { settingsItem, type ImageMode } from '@/utils/settings';
 import { fragmentFromSegments, normalizeQuote } from '@/utils/quote';
 import { openEditor } from './editor';
 import { findImages, locateNote } from './locate';
@@ -38,11 +39,12 @@ function collectImageSrcs(clicked?: string): string[] {
 }
 
 /** Baja una imagen y la devuelve como dataURL JPEG. null si no se pudo. */
-async function loadImage(src: string): Promise<string | null> {
+async function loadImage(src: string, mode: ImageMode): Promise<string | null> {
   try {
     if (src.startsWith('data:image/')) return src;
     if (src.startsWith('blob:')) return await blobToJpegDataUrl(await (await fetch(src)).blob());
     if (!/^https?:/i.test(src)) return null;
+    if (mode === 'url') return src; // solo el enlace: no se descarga nada
     const res = await browser.runtime.sendMessage({ type: 'fetch-image', url: src }); // lo baja el background (sin CORS)
     return typeof res?.dataUrl === 'string' ? res.dataUrl : null;
   } catch {
@@ -232,6 +234,8 @@ export default defineContentScript({
         .ithumbs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; max-height: 128px; overflow: auto; }
         .thumb { position: relative; flex: none; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: var(--field); }
         .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .thumb.broken { display: grid; place-items: center; }
+        .thumb.broken::before { content: '🖼'; font-size: 20px; color: var(--muted); }
         .thumb button { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%;
                         cursor: pointer; background: rgba(0,0,0,.65); color: #fff; font-size: 9px; line-height: 16px; }
         .thumb button:hover { background: var(--accent); }
@@ -392,6 +396,12 @@ export default defineContentScript({
           const t = document.createElement('div');
           t.className = 'thumb';
           const im = document.createElement('img');
+          im.referrerPolicy = 'no-referrer';
+          // en páginas con CSP estricta el enlace remoto puede no mostrarse: la nota se guarda igual
+          im.onerror = () => {
+            t.classList.add('broken');
+            im.remove();
+          };
           im.src = it.data;
           im.alt = '';
           const x = document.createElement('button');
@@ -418,19 +428,21 @@ export default defineContentScript({
       if (!fresh.length) return;
       loading += fresh.length;
       renderImages();
-      const job = Promise.all(
-        fresh.map(async (src) => {
-          const data = await loadImage(src);
-          loading--;
-          renderImages();
-          return data ? { src, data } : null;
-        }),
-      ).then((res) => {
+      const job = (async () => {
+        const { imageMode } = await settingsItem.getValue(); // 'url' (por defecto) o 'offline'
+        const res = await Promise.all(
+          fresh.map(async (src) => {
+            const data = await loadImage(src, imageMode);
+            loading--;
+            renderImages();
+            return data ? { src, data } : null;
+          }),
+        );
         const ok = res.filter((r): r is { src: string; data: string } => r !== null);
         for (const r of ok) if (!images.some((i) => i.src === r.src)) images.push(r);
         renderImages();
         if (ok.length < res.length) flash(`${res.length - ok.length} sin descargar`, 'err');
-      });
+      })();
       pending = pending.then(() => job);
     };
     const autosize = () => {

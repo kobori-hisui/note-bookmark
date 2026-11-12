@@ -1,4 +1,5 @@
 import {
+  applyImagePatches,
   bookmarksItem,
   combineBookmarks,
   removeBookmark,
@@ -10,6 +11,7 @@ import { exportJson, isSafeUrl, mergeBookmarks, parseBackup } from '@/utils/back
 import { folderLabel, groupBookmarks, type Folder } from '@/utils/folders';
 import { buildDb, loadSqlJs } from '@/utils/sqlite';
 import { textFragmentUrl } from '@/utils/quote';
+import { settingsItem, type ImageMode } from '@/utils/settings';
 
 const list = document.getElementById('list') as HTMLUListElement;
 const empty = document.getElementById('empty') as HTMLParagraphElement;
@@ -46,6 +48,7 @@ function openLightbox(srcs: string[], start = 0) {
   ov.className = 'lightbox';
 
   const img = document.createElement('img');
+  img.referrerPolicy = 'no-referrer';
   const counter = document.createElement('span');
   counter.className = 'lb-count';
   const mk = (cls: string, text: string, title: string) => {
@@ -154,6 +157,14 @@ function renderCard(b: Bookmark, showTitle = true): HTMLElement {
     const all = b.images;
     all.forEach((src, idx) => {
       const im = document.createElement('img');
+      im.referrerPolicy = 'no-referrer';
+      im.onerror = () => {
+        const f = document.createElement('div');
+        f.className = 'imgfail';
+        f.textContent = '🖼 no disponible';
+        f.title = 'No se pudo cargar: ¿sin conexión o el sitio la borró?';
+        im.replaceWith(f);
+      };
       im.src = src;
       im.loading = 'lazy';
       im.title = 'Ver imagen';
@@ -507,6 +518,125 @@ fileInput.addEventListener('change', async () => {
   );
 });
 
+// ---- ajustes: imágenes como enlace u offline ----
+
+const settingsBtn = document.getElementById('settings') as HTMLButtonElement;
+const panel = document.getElementById('settings-panel') as HTMLElement;
+const modeRadios = panel.querySelectorAll<HTMLInputElement>('input[name="imgmode"]');
+const storageInfo = document.getElementById('storage-info') as HTMLParagraphElement;
+const dlAll = document.getElementById('dl-all') as HTMLButtonElement;
+const stripAll = document.getElementById('strip-all') as HTMLButtonElement;
+
+const isHttp = (s: string) => /^https?:\/\//i.test(s);
+const mb = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`;
+
+/** Cuánto ocupan las notas: ayuda a decidir entre "solo enlace" y "offline". */
+function refreshStorageInfo() {
+  let downloaded = 0;
+  let links = 0;
+  let bytes = 0;
+  for (const b of all) {
+    for (const s of b.images ?? []) {
+      if (isHttp(s)) links++;
+      else {
+        downloaded++;
+        bytes += s.length * 0.75; // base64 -> bytes aprox.
+      }
+    }
+    if (b.image) bytes += b.image.length * 0.75; // capturas de región (siempre quedan guardadas)
+  }
+  storageInfo.textContent = `${all.length} notas · ${downloaded} imágenes descargadas · ${links} solo enlace · ocupan ~${mb(bytes)}`;
+}
+
+function openSettings() {
+  panel.hidden = false;
+  refreshStorageInfo();
+}
+
+settingsBtn.addEventListener('click', () => {
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) refreshStorageInfo();
+});
+settingsItem.getValue().then((s) => modeRadios.forEach((r) => (r.checked = r.value === s.imageMode)));
+modeRadios.forEach((r) =>
+  r.addEventListener('change', async () => {
+    if (r.checked) await settingsItem.setValue({ imageMode: r.value as ImageMode });
+  }),
+);
+if (new URLSearchParams(location.search).has('settings')) openSettings();
+
+/** La descarga masiva necesita que la ventana siga abierta: el popup se cierra al perder el foco, así que va en pestaña. */
+async function ensureTab(): Promise<boolean> {
+  if (inTab) return true;
+  await browser.tabs.create({ url: browser.runtime.getURL('/popup.html?tab=1&settings=1') });
+  window.close();
+  return false;
+}
+
+dlAll.addEventListener('click', async () => {
+  if (!(await ensureTab())) return;
+  dlAll.disabled = stripAll.disabled = true;
+  try {
+    const targets = all.filter((b) => b.images?.some(isHttp));
+    const total = targets.reduce((n, b) => n + b.images!.filter(isHttp).length, 0);
+    if (!total) return say('No hay imágenes pendientes de descargar.', 'ok');
+
+    let done = 0;
+    let failed = 0;
+    let patches: Record<string, string[]> = {};
+    let batch = 0;
+    for (const b of targets) {
+      const out = [...b.images!];
+      for (let i = 0; i < out.length; i += 4) {
+        // 4 en paralelo
+        await Promise.all(
+          out.slice(i, i + 4).map(async (s, k) => {
+            if (!isHttp(s)) return;
+            const res = await browser.runtime.sendMessage({ type: 'fetch-image', url: s }).catch(() => null);
+            if (typeof res?.dataUrl === 'string') out[i + k] = res.dataUrl;
+            else failed++;
+            done++;
+            say(`Descargando ${done}/${total}…`, 'ok');
+          }),
+        );
+      }
+      patches[b.id] = out;
+      if (++batch % 10 === 0) {
+        await applyImagePatches(patches); // se guarda por tandas para no perder avance
+        patches = {};
+      }
+    }
+    if (Object.keys(patches).length) await applyImagePatches(patches);
+    say(
+      `Listo: ${total - failed} descargadas` + (failed ? ` · ${failed} fallaron (siguen como enlace)` : '') + '.',
+      failed ? 'err' : 'ok',
+    );
+  } finally {
+    dlAll.disabled = stripAll.disabled = false;
+  }
+});
+
+stripAll.addEventListener('click', async () => {
+  const patches: Record<string, string[]> = {};
+  let n = 0;
+  for (const b of all) {
+    if (!b.images?.length) continue;
+    const out = b.images.map((s, i) => {
+      const src = b.imageSrcs?.[i];
+      if (!isHttp(s) && src && isHttp(src)) {
+        n++;
+        return src;
+      }
+      return s; // sin enlace original: se conserva la copia, no hay forma de recuperarla
+    });
+    if (out.some((s, i) => s !== b.images![i])) patches[b.id] = out;
+  }
+  if (!n) return say('No hay copias descargadas que se puedan liberar.', 'ok');
+  if (!confirm(`Se borrarán ${n} copias descargadas y quedarán solo sus enlaces. ¿Continuar?`)) return;
+  await applyImagePatches(patches);
+  say(`Liberadas ${n} imágenes; ahora solo quedan los enlaces.`, 'ok');
+});
+
 // ---- carga y actualización en vivo ----
 
 function load(items: Bookmark[]) {
@@ -516,6 +646,7 @@ function load(items: Bookmark[]) {
   for (const id of [...selected]) if (!ids.has(id)) selected.delete(id);
   if (editingId && !ids.has(editingId)) editingId = null;
   updateBulk();
+  refreshStorageInfo();
   rerender();
 }
 
