@@ -183,10 +183,20 @@ function renderCard(b: Bookmark, showTitle = true): HTMLElement {
   // La carpeta solo muestra la ruta parcial; aquí siempre va la URL completa.
   // Con cita, el enlace abre la página y resalta el texto citado.
   const a = document.createElement('a');
-  a.href = b.quote ? textFragmentUrl(b.url, b.quote) : b.url;
+  a.href = b.quote ? textFragmentUrl(b.url, b.quote, b.fragment) : b.url;
   a.target = '_blank';
   a.textContent = b.url;
-  a.title = b.quote ? 'Abrir y resaltar el texto citado' : b.url;
+  const locatable = !!(b.quote || b.images?.length || b.anchor);
+  a.title = locatable ? 'Abrir y ubicar la nota en la página' : b.url;
+  if (locatable) {
+    // clic normal: el background abre la pestaña y el content script se desplaza y marca el lugar exacto
+    // (Ctrl/Shift/clic central siguen abriendo el enlace tal cual)
+    a.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      browser.runtime.sendMessage({ type: 'open-note', id: b.id });
+    });
+  }
 
   const date = document.createElement('span');
   const d = new Date(b.date);

@@ -13,7 +13,14 @@
 - **Alt+S:** la lista de notas de la página indica cuántas imágenes tiene cada nota (🖼 N).
 - **Exportar a SQLite:** nueva tabla `bookmark_images (bookmark_id, position, image BLOB, image_mime)`; `PRAGMA user_version` sube a 2.
 
+### Agregado (ubicar la nota en la página)
+- **Ubicación propia, sin depender de Chrome.** Al abrir una nota desde el historial, la pestaña se desplaza hasta el texto o la imagen guardados y los marca con un recuadro amarillo/rojo y un aviso. El texto se busca en el DOM ignorando espacios y bloques (funciona con etiquetas `inline-block`/`flex`, como en nhentai.net); si se repite, elige la aparición más cercana a la posición guardada; las imágenes se encuentran por su URL original (incluye `data-src`/`srcset`); si no aparece nada, deja en la zona aproximada donde se guardó. Reintenta ~12 s por si la página carga contenido después.
+- **Alt+S:** hacer clic en una nota de la lista lleva a su lugar en la página actual.
+- Campos nuevos opcionales en la nota: `imageSrcs` (URL original de cada imagen) y `anchor` (posición en la página). `fragment` queda como respaldo para Ctrl/Shift/clic central sobre el enlace.
+- Archivo nuevo: `locate.ts` (junto al content script).
+
 ### Cambiado
+- **Enlace a la cita (text fragment):** ahora el fragmento se calcula al seleccionar, partiendo el texto por bloques de la página, y se guarda en el nuevo campo opcional `fragment`. Usa la forma `inicio,fin`, así la cita se resalta aunque cruce varios bloques (etiquetas `inline-block`/`flex`, como en nhentai.net). Las notas viejas siguen usando el método anterior.
 - Modelo `Bookmark`: nuevo campo opcional `images?: string[] | null`. Las notas anteriores siguen funcionando sin migración.
 - Fusionar notas ahora junta también las imágenes de todas las partes.
 - Importar JSON valida y conserva `images` (solo `data:image/...`).
@@ -29,5 +36,5 @@
 - Las imágenes dentro de Shadow DOM no se detectan en la selección múltiple (el clic derecho directo sí funciona).
 
 ### Archivos modificados
-`background.ts`, `index.ts` (content script), `bookmarks.ts`, `backup.ts`, `sqlite.ts`, `main.ts`, `style.css`
+`background.ts`, `index.ts` (content script), `bookmarks.ts`, `backup.ts`, `sqlite.ts`, `main.ts`, `style.css`, `quote.ts`, `locate.ts` (nuevo, en el content script)
 **Nuevo:** `utils/image.ts`

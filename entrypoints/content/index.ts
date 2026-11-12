@@ -1,8 +1,9 @@
-import { addBookmark, bookmarksItem } from '@/utils/bookmarks';
+import { addBookmark, bookmarksItem, type Anchor } from '@/utils/bookmarks';
 import { notesForPage } from '@/utils/folders';
 import { blobToJpegDataUrl } from '@/utils/image';
-import { normalizeQuote } from '@/utils/quote';
+import { fragmentFromSegments, normalizeQuote } from '@/utils/quote';
 import { openEditor } from './editor';
+import { findImages, locateNote } from './locate';
 import { cropImage, selectRegion } from './selector';
 
 /** Texto seleccionado en la página (también dentro de inputs/textarea). */
@@ -46,6 +47,69 @@ async function loadImage(src: string): Promise<string | null> {
     return typeof res?.dataUrl === 'string' ? res.dataUrl : null;
   } catch {
     return null;
+  }
+}
+
+const httpSrc = (s: string) => (/^https?:/i.test(s) ? s : '');
+const docHeight = () => Math.max(1, document.documentElement.scrollHeight);
+
+/** Dónde está (en la página) lo que se va a guardar: la selección o la imagen clicada. Respaldo para ubicar la nota. */
+function computeAnchor(clickedSrc?: string): Anchor | null {
+  try {
+    let top: number | null = null;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.rangeCount) {
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      if (r.width || r.height) top = r.top;
+    }
+    if (top === null && clickedSrc) {
+      const img = findImages([clickedSrc])[0];
+      if (img) top = img.getBoundingClientRect().top;
+    }
+    return top === null ? null : { y: Math.round(top + window.scrollY), h: docHeight() };
+  } catch {
+    return null;
+  }
+}
+
+/** Sin selección ni imagen: la zona que se está viendo. */
+const viewportAnchor = (): Anchor => ({ y: Math.round(window.scrollY + window.innerHeight / 2), h: docHeight() });
+
+/** Bloque (para el buscador de text fragments) al que pertenece un nodo: el primer ancestro que no sea inline. */
+function blockOf(node: Node): Element | null {
+  let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  while (el && /^(inline|contents|ruby|ruby-text)$/.test(getComputedStyle(el).display)) el = el.parentElement;
+  return el;
+}
+
+/** Texto de la selección partido por bloques de la página (cada etiqueta inline-block/flex cuenta como un bloque). */
+function selectionSegments(): string[] {
+  try {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return [];
+    const range = sel.getRangeAt(0);
+    const ca = range.commonAncestorContainer;
+    const root = ca.nodeType === Node.ELEMENT_NODE ? ca : ca.parentNode;
+    if (!root) return [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const segs: string[] = [];
+    let lastBlock: Element | null = null;
+    while (walker.nextNode()) {
+      const t = walker.currentNode as Text;
+      if (!range.intersectsNode(t)) continue;
+      if (/^(SCRIPT|STYLE|NOSCRIPT)$/.test(t.parentElement?.tagName ?? '')) continue;
+      let text = t.data;
+      if (t === range.endContainer) text = text.slice(0, range.endOffset);
+      if (t === range.startContainer) text = text.slice(range.startOffset);
+      if (!text.trim()) continue;
+      const b = blockOf(t);
+      if (!segs.length || b !== lastBlock) segs.push(text);
+      else segs[segs.length - 1] += text;
+      lastBlock = b;
+    }
+    return segs.map(normalizeQuote).filter(Boolean);
+  } catch {
+    return [];
   }
 }
 
@@ -142,7 +206,8 @@ export default defineContentScript({
               background: transparent; color: var(--muted); font-size: 11px; line-height: 20px; }
         .px:hover { background: var(--chip); color: var(--fg); }
         .plist { max-height: 38vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
-        .pitem { background: var(--field); border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.4; }
+        .pitem { background: var(--field); border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.4; cursor: pointer; }
+        .pitem:hover { background: var(--chip-hover); }
         .pq { border-left: 3px solid var(--accent); padding-left: 8px; margin-bottom: 4px; color: var(--muted);
               font-style: italic; word-break: break-word; overflow: hidden;
               display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
@@ -296,6 +361,8 @@ export default defineContentScript({
 
     // Texto de la página al que se refiere la nota (se captura al abrir con Alt+C)
     let quote: string | null = null;
+    let fragment: string | null = null; // text fragment calculado al seleccionar (ver selectionSegments)
+    let anchor: Anchor | null = null; // posición en la página de lo que se guarda
     // Imágenes de la página adjuntas (clic derecho sobre una imagen o sobre una selección con imágenes)
     let images: { src: string; data: string }[] = [];
     let loading = 0;
@@ -311,6 +378,7 @@ export default defineContentScript({
     const syncActive = () => spot.classList.toggle('active', textarea.value.length > 0 || !!quote || images.length > 0);
     const setQuote = (q: string | null) => {
       quote = q;
+      if (!q) fragment = null;
       quoteBox.hidden = !q;
       quoteText.textContent = q ?? '';
       quoteText.title = q ?? '';
@@ -374,6 +442,7 @@ export default defineContentScript({
       textarea.value = '';
       autosize();
       setQuote(null);
+      anchor = null;
       images = [];
       renderImages();
     };
@@ -397,6 +466,11 @@ export default defineContentScript({
         ...notes.map((n) => {
           const item = document.createElement('div');
           item.className = 'pitem';
+          item.title = 'Ir a esta nota en la página';
+          item.addEventListener('click', () => {
+            hide();
+            locateNote({ quote: n.quote, imageSrcs: n.imageSrcs, anchor: n.anchor });
+          });
           if (n.quote) {
             const q = document.createElement('div');
             q.className = 'pq';
@@ -449,7 +523,11 @@ export default defineContentScript({
     // Al abrir con Alt+C se lee la selección ANTES de enfocar el textarea (enfocar la borraría)
     const open = () => {
       const sel = readSelection();
-      if (sel) setQuote(sel);
+      if (sel) {
+        setQuote(sel);
+        fragment = fragmentFromSegments(selectionSegments());
+      }
+      anchor = computeAnchor() ?? viewportAnchor();
       addImages(collectImageSrcs()); // imágenes dentro de la selección (también antes de enfocar)
       show();
     };
@@ -466,7 +544,11 @@ export default defineContentScript({
     // Clic derecho -> "Guardar selección como nota": abre el cuadro con esa cita ya puesta
     const openWithQuote = (raw: string, srcUrl?: string) => {
       const q = normalizeQuote(raw);
-      if (q) setQuote(q);
+      if (q) {
+        setQuote(q);
+        fragment = fragmentFromSegments(selectionSegments());
+      }
+      anchor = computeAnchor(srcUrl) ?? viewportAnchor();
       addImages(collectImageSrcs(srcUrl));
       show();
     };
@@ -485,7 +567,16 @@ export default defineContentScript({
       await pending; // espera a que terminen de bajar las imágenes
       const note = textarea.value.trim();
       if (!note && !quote && !images.length) return; // se permite guardar solo la cita o solo imágenes
-      await addBookmark({ note, url: location.href, quote, images: images.map((i) => i.data), ...pageMeta() });
+      await addBookmark({
+        note,
+        url: location.href,
+        quote,
+        fragment,
+        images: images.map((i) => i.data),
+        imageSrcs: images.map((i) => httpSrc(i.src)),
+        anchor: anchor ?? viewportAnchor(),
+        ...pageMeta(),
+      });
       reset();
       flash('Guardado ✓', 'ok', hide);
     };
@@ -566,12 +657,26 @@ export default defineContentScript({
         url: location.href,
         image: result.image,
         quote,
+        fragment,
         images: images.map((i) => i.data),
+        imageSrcs: images.map((i) => httpSrc(i.src)),
+        anchor:
+          !quote && !images.length
+            ? { y: Math.round(window.scrollY + region.y + region.h / 2), h: docHeight() } // zona de la captura
+            : (anchor ?? viewportAnchor()),
         ...pageMeta(),
       });
       reset();
     });
 
     document.body.appendChild(host);
+
+    // Si esta pestaña se abrió desde el historial, el background tiene una nota que ubicar aquí
+    browser.runtime
+      .sendMessage({ type: 'content-ready' })
+      .then((res) => {
+        if (res?.target) locateNote(res.target);
+      })
+      .catch(() => {});
   },
 });

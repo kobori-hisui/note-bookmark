@@ -1,6 +1,12 @@
 import { storage } from '#imports';
 import { pageId } from './folders';
 
+/** Dónde estaba lo guardado en la página: y = px desde arriba, h = alto total del documento (para escalar si cambia). */
+export interface Anchor {
+  y: number;
+  h: number;
+}
+
 export interface Bookmark {
   id: string;
   url: string;
@@ -11,6 +17,9 @@ export interface Bookmark {
   title?: string | null; // document.title al guardar (opcional; notas viejas no lo tienen)
   favicon?: string | null; // URL del ícono del sitio (opcional)
   images?: string[] | null; // imágenes de la página (dataURL JPEG) guardadas con clic derecho (opcional)
+  fragment?: string | null; // directiva del text fragment (#:~:text=...) calculada al seleccionar la cita (opcional)
+  imageSrcs?: string[] | null; // URL original de cada imagen de `images` ('' si no es http); sirve para ubicarlas en la página
+  anchor?: Anchor | null; // posición en la página al guardar; respaldo para volver a ubicar la nota
 }
 
 export const bookmarksItem = storage.defineItem<Bookmark[]>('local:bookmarks', {
@@ -25,6 +34,9 @@ export interface NewBookmark {
   title?: string | null;
   favicon?: string | null;
   images?: string[] | null;
+  fragment?: string | null;
+  imageSrcs?: string[] | null;
+  anchor?: Anchor | null;
 }
 
 const time = (b: Bookmark) => Date.parse(b.date) || 0;
@@ -41,6 +53,9 @@ export async function addBookmark(input: NewBookmark): Promise<Bookmark> {
     title: input.title?.trim() || null,
     favicon: input.favicon ?? null,
     images: input.images?.length ? input.images : null,
+    fragment: input.quote ? (input.fragment ?? null) : null,
+    imageSrcs: input.images?.length ? (input.imageSrcs ?? null) : null,
+    anchor: input.anchor ?? null,
   };
   const list = await bookmarksItem.getValue();
   await bookmarksItem.setValue([bookmark, ...list]);
@@ -95,6 +110,7 @@ export function combineBookmarks(parts: Bookmark[]): Bookmark | string {
     .filter(Boolean);
 
   const allImages = sorted.flatMap((b) => b.images ?? []);
+  const allSrcs = sorted.flatMap((b) => (b.images ?? []).map((_, i) => b.imageSrcs?.[i] ?? ''));
 
   const first = sorted[0];
   return {
@@ -107,5 +123,8 @@ export function combineBookmarks(parts: Bookmark[]): Bookmark | string {
     title: sorted.find((b) => b.title)?.title ?? null,
     favicon: sorted.find((b) => b.favicon)?.favicon ?? null,
     images: allImages.length ? allImages : null,
+    fragment: mainQuote ? (sorted.find((b) => b.quote)?.fragment ?? null) : null,
+    imageSrcs: allImages.length ? allSrcs : null,
+    anchor: sorted.find((b) => b.anchor)?.anchor ?? null,
   };
 }

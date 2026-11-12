@@ -1,5 +1,8 @@
 import type { Bookmark } from './bookmarks';
 
+// lo que produce encodeURIComponent (+ la coma que separa inicio,fin del fragmento)
+const FRAGMENT_OK = /^[A-Za-z0-9_.!~*'()%,]{1,2000}$/;
+
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'file:', 'ftp:']);
 
 /** true si la URL es utilizable (protocolo seguro). Evita javascript:, data:, etc. */
@@ -31,6 +34,14 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
   const images = Array.isArray(o.images)
     ? o.images.filter((s): s is string => typeof s === 'string' && s.startsWith('data:image/'))
     : [];
+  const rawAnchor = o.anchor as { y?: unknown; h?: unknown } | null | undefined;
+  const anchor =
+    rawAnchor && typeof rawAnchor.y === 'number' && typeof rawAnchor.h === 'number' && Number.isFinite(rawAnchor.y) && rawAnchor.h > 0
+      ? { y: rawAnchor.y, h: rawAnchor.h }
+      : null;
+  const imageSrcs = Array.isArray(o.imageSrcs)
+    ? o.imageSrcs.map((s) => (typeof s === 'string' && /^https?:\/\//i.test(s) ? s : ''))
+    : null;
   return {
     id: o.id,
     url: o.url,
@@ -41,6 +52,9 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
     title: typeof o.title === 'string' && o.title.trim() ? o.title.trim() : null,
     favicon: webUrl(o.favicon),
     images: images.length ? images : null,
+    fragment: typeof o.fragment === 'string' && FRAGMENT_OK.test(o.fragment) ? o.fragment : null,
+    imageSrcs: images.length ? imageSrcs : null,
+    anchor,
   };
 }
 

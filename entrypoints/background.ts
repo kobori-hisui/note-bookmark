@@ -5,6 +5,19 @@ import { blobToJpegDataUrl } from '@/utils/image';
 const MENU_ID = 'save-selection';
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 
+/** Notas que se abrieron desde el historial y esperan a que su pestaña cargue para ubicarse. */
+const pendingLocate = new Map<
+  number,
+  { quote?: string | null; imageSrcs?: string[] | null; anchor?: { y: number; h: number } | null }
+>();
+
+async function openNote(id: string) {
+  const b = (await bookmarksItem.getValue()).find((x) => x.id === id);
+  if (!b) return;
+  const tab = await browser.tabs.create({ url: b.url });
+  if (tab.id != null) pendingLocate.set(tab.id, { quote: b.quote, imageSrcs: b.imageSrcs, anchor: b.anchor });
+}
+
 /** Descarga una imagen desde el background (con host_permissions no choca con CORS) y la reduce a JPEG. */
 async function fetchImage(url: string): Promise<string> {
   if (!/^https?:/i.test(url)) throw new Error('URL no válida');
@@ -82,8 +95,24 @@ export default defineBackground(() => {
   });
   refreshActiveTabs();
 
+  browser.tabs.onRemoved.addListener((id) => pendingLocate.delete(id));
+
   // Botón de captura -> screenshot de la pestaña visible
   browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type === 'open-note') {
+      openNote(String(msg.id))
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ error: String(err) }));
+      return true;
+    }
+    if (msg?.type === 'content-ready') {
+      // el content script de una pestaña recién cargada pregunta si tiene que ubicar una nota
+      const id = sender.tab?.id;
+      const target = id != null ? pendingLocate.get(id) : undefined;
+      if (id != null) pendingLocate.delete(id);
+      sendResponse({ target: target ?? null });
+      return;
+    }
     if (msg?.type === 'fetch-image') {
       fetchImage(String(msg.url))
         .then((dataUrl) => sendResponse({ dataUrl }))
