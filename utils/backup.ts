@@ -2,18 +2,32 @@ import type { Bookmark } from './bookmarks';
 
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'file:', 'ftp:']);
 
+/** true si la URL es utilizable (protocolo seguro). Evita javascript:, data:, etc. */
+export function isSafeUrl(url: string): boolean {
+  try {
+    return SAFE_PROTOCOLS.has(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
+
+const webUrl = (s: unknown): string | null => {
+  if (typeof s !== 'string') return null;
+  try {
+    const p = new URL(s).protocol;
+    return p === 'http:' || p === 'https:' ? s : null;
+  } catch {
+    return null;
+  }
+};
+
 /** Valida/normaliza un elemento importado. Devuelve null si no es utilizable. */
 export function normalizeBookmark(x: unknown): Bookmark | null {
   if (!x || typeof x !== 'object') return null;
   const o = x as Record<string, unknown>;
   if (typeof o.id !== 'string' || !o.id) return null;
   if (typeof o.note !== 'string' || typeof o.date !== 'string') return null;
-  if (typeof o.url !== 'string') return null;
-  try {
-    if (!SAFE_PROTOCOLS.has(new URL(o.url).protocol)) return null; // evita javascript:, data:, etc.
-  } catch {
-    return null;
-  }
+  if (typeof o.url !== 'string' || !isSafeUrl(o.url)) return null;
   return {
     id: o.id,
     url: o.url,
@@ -21,6 +35,8 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
     date: o.date,
     image: typeof o.image === 'string' && o.image.startsWith('data:image/') ? o.image : null,
     quote: typeof o.quote === 'string' && o.quote ? o.quote : null,
+    title: typeof o.title === 'string' && o.title.trim() ? o.title.trim() : null,
+    favicon: webUrl(o.favicon),
   };
 }
 

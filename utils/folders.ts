@@ -17,8 +17,9 @@ const OTHER = 'otros';
 export const MIN_NOTES_FOR_SUBFOLDER = 2;
 
 export interface SubFolder {
-  key: string; // host + ruta completa (sin query ni hash)
-  label: string; // p. ej. "/evil-angel-drops-vince-karters-miami-vixens"
+  key: string; // identidad de la página (ver pageId)
+  label: string; // p. ej. "/evil-angel-drops-vince-karters-miami-vixens" (respaldo si no hay título)
+  title: string | null; // título de la página, si alguna nota lo guardó
   items: Bookmark[]; // más recientes primero
   latest: number;
 }
@@ -130,14 +131,45 @@ function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
 
 // ---- subcarpetas: una página concreta (artículo) con varias notas ----
 
-/** Identifica la página: host + ruta completa, sin query, hash ni "/" final. null si no aplica. */
+// parámetros de seguimiento: no cambian la página, así que no cuentan como "otra página"
+const TRACKING = /^(utm_.*|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid|igshid|yclid|_ga|_gl)$/i;
+
+/** Query normalizada: sin seguimiento y ordenada (así ?v=1&t=2 y ?t=2&v=1 son lo mismo). */
+function cleanQuery(p: Parsed): string {
+  const kept: [string, string][] = [];
+  p.params.forEach((v, k) => {
+    if (!TRACKING.test(k)) kept.push([k, v]);
+  });
+  kept.sort(([a], [b]) => a.localeCompare(b));
+  return kept.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+}
+
+/**
+ * Identidad de una página: host + ruta + query sin seguimiento. Ignora hash, "www.",
+ * "/" final y http/https. null si no es una URL web. Sirve para saber "¿ya anoté esta página?".
+ */
+export function pageId(url: string): string | null {
+  const p = parse(url);
+  if (!p) return null;
+  const q = cleanQuery(p);
+  return `${p.host}/${p.segs.join('/')}${q ? '?' + q : ''}`;
+}
+
+/** Notas guardadas para la página `url`, más recientes primero. */
+export function notesForPage(items: Bookmark[], url: string): Bookmark[] {
+  const id = pageId(url);
+  if (!id) return [];
+  return items.filter((b) => pageId(b.url) === id).sort(newestFirst);
+}
+
+/** Clave y etiqueta de subcarpeta. null si es la portada del sitio (sin ruta). */
 export function pageKey(url: string): { key: string; label: string } | null {
   const p = parse(url);
   if (!p || !p.segs.length) return null;
-  const key = `${p.host}/${p.segs.join('/')}`;
+  const q = cleanQuery(p);
   // etiqueta: el último segmento que no sea solo un número (el slug del artículo)
   const slug = [...p.segs].reverse().find((s) => !NUMERIC.test(s)) ?? p.segs[p.segs.length - 1];
-  return { key, label: '/' + slug };
+  return { key: pageId(url)!, label: '/' + slug + (q ? '?' + q : '') };
 }
 
 function splitSubfolders(sorted: Bookmark[], min = MIN_NOTES_FOR_SUBFOLDER) {
@@ -155,7 +187,8 @@ function splitSubfolders(sorted: Bookmark[], min = MIN_NOTES_FOR_SUBFOLDER) {
   for (const [key, g] of byPage) {
     if (g.items.length < min) continue;
     g.items.forEach((b) => inSub.add(b.id));
-    subfolders.push({ key, label: g.label, items: g.items, latest: time(g.items[0]) });
+    const title = g.items.find((b) => b.title)?.title ?? null; // la más reciente que tenga título
+    subfolders.push({ key, label: g.label, title, items: g.items, latest: time(g.items[0]) });
   }
   subfolders.sort((a, b) => b.latest - a.latest);
   return { subfolders, rest: sorted.filter((b) => !inSub.has(b.id)) };

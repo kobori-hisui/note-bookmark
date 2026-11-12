@@ -39,6 +39,39 @@ header h1 { margin: 0; }
 #status.err { color: #f87171; }
 body.tab { width: auto; max-width: 720px; max-height: none; margin: 0 auto; padding: 24px 16px; }
 
+/* título de la página + favicon */
+.title { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; min-width: 0; font-weight: 600; font-size: 12px; color: #ddd; }
+.title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+img.fav { flex: none; width: 14px; height: 14px; max-height: none; margin: 0; border-radius: 3px; background: none; cursor: default; object-fit: contain; }
+
+/* botones de la tarjeta, deshacer */
+.meta button.edit-btn { color: #9ab; }
+.meta button.edit-btn:hover { color: #fff; }
+#status button.undo { margin-left: 4px; color: #7ab7ff; font-size: 12px; text-decoration: underline; }
+
+/* edición de una nota */
+.card.edit { display: flex; flex-direction: column; gap: 6px; }
+.card.edit input, .card.edit textarea { width: 100%; box-sizing: border-box; padding: 6px 8px; background: #1c1c1c; color: #eee;
+  border: 1px solid #444; border-radius: 6px; font: inherit; font-size: 12px; }
+.card.edit textarea { min-height: 70px; resize: vertical; }
+.card.edit input:focus, .card.edit textarea:focus { outline: none; border-color: #e11d1d; }
+.edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.edit-actions button { padding: 4px 10px; background: #2f2f2f; color: #ddd; border: 1px solid #444; border-radius: 6px; font-size: 12px; }
+.edit-actions button.primary, #bulk button.primary { background: #e11d1d; border-color: #e11d1d; color: #fff; }
+.edit-err { color: #f87171; font-size: 11px; }
+
+/* seleccionar / fusionar */
+.actions button.on { border-color: #e11d1d; }
+#bulk { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 6px 10px;
+  background: #2a2a2a; border: 1px solid #444; border-radius: 6px; font-size: 12px; }
+#bulk[hidden] { display: none; }
+#bulk span { flex: 1; }
+#bulk button { padding: 4px 9px; background: #2f2f2f; color: #ddd; border: 1px solid #444; border-radius: 6px; font-size: 12px; }
+#bulk button:disabled { opacity: .4; cursor: default; }
+.pick { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #aaa; font-size: 11px; cursor: pointer; }
+.card.picked { outline: 1px solid #e11d1d; }
+.pickall { color: #7ab7ff; font-size: 11px; text-decoration: underline; }
+
 /* cita */
 .quote { border-left: 3px solid #e11d1d; padding: 2px 8px; margin-bottom: 6px; color: #bbb; font-style: italic;
          white-space: pre-wrap; word-break: break-word; max-height: 7em; overflow: auto; }

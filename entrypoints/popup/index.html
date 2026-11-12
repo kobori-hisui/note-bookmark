@@ -12,9 +12,15 @@
         <button id="export" title="Descargar todas las notas como JSON (respaldo; se puede importar de vuelta)">↓ JSON</button>
         <button id="export-db" title="Descargar una base de datos SQLite (.db) que abre cualquier gestor">↓ .db</button>
         <button id="import" title="Importar notas desde un JSON">↑ Importar</button>
+        <button id="select" title="Seleccionar varias notas de una misma página para fusionarlas">☑ Seleccionar</button>
       </div>
     </header>
     <p id="status" hidden></p>
+    <div id="bulk" hidden>
+      <span id="bulk-count"></span>
+      <button id="merge" class="primary" disabled title="Une las notas elegidas en una sola (deben ser de la misma página)">Fusionar</button>
+      <button id="bulk-cancel">Cancelar</button>
+    </div>
     <input id="file" type="file" accept="application/json,.json" hidden />
     <ul id="list"></ul>
     <p id="empty" hidden>Aún no hay notas.</p>

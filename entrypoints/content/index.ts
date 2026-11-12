@@ -1,4 +1,5 @@
-import { addBookmark } from '@/utils/bookmarks';
+import { addBookmark, bookmarksItem } from '@/utils/bookmarks';
+import { notesForPage } from '@/utils/folders';
 import { normalizeQuote } from '@/utils/quote';
 import { openEditor } from './editor';
 import { cropImage, selectRegion } from './selector';
@@ -14,6 +15,23 @@ function readSelection(): string {
   } catch {
     return ''; // p. ej. input type=email lanza al leer selectionStart
   }
+}
+
+/** Título y favicon de la página, para guardarlos junto a la nota. */
+function pageMeta(): { title: string | null; favicon: string | null } {
+  const title = (document.title || '').trim().slice(0, 300) || null;
+  const candidates = [
+    document.querySelector<HTMLLinkElement>('link[rel~="icon"]')?.href,
+    `${location.origin}/favicon.ico`,
+  ];
+  for (const c of candidates) {
+    try {
+      if (c && /^https?:$/.test(new URL(c).protocol)) return { title, favicon: c };
+    } catch {
+      // URL inválida (p. ej. origin "null" en file://)
+    }
+  }
+  return { title, favicon: null };
 }
 
 export default defineContentScript({
@@ -83,6 +101,23 @@ export default defineContentScript({
           to   { opacity: 1; transform: none; }
         }
 
+        /* Notas que ya hay en esta página (Alt+S) */
+        .prev { padding: 4px 6px 10px; }
+        .prev[hidden] { display: none; }
+        .phead { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 6px;
+                 font-size: 12px; color: var(--muted); }
+        .px { flex: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+              background: transparent; color: var(--muted); font-size: 11px; line-height: 20px; }
+        .px:hover { background: var(--chip); color: var(--fg); }
+        .plist { max-height: 38vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+        .pitem { background: var(--field); border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.4; }
+        .pq { border-left: 3px solid var(--accent); padding-left: 8px; margin-bottom: 4px; color: var(--muted);
+              font-style: italic; word-break: break-word; overflow: hidden;
+              display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+        .pn { white-space: pre-wrap; word-break: break-word; }
+        .pd { margin-top: 4px; font-size: 11px; color: var(--muted); }
+        .pempty { padding: 4px 2px; font-size: 13px; color: var(--muted); }
+
         /* Referencia: texto seleccionado en la página */
         .quote { display: flex; align-items: flex-start; gap: 10px; padding: 4px 6px 10px 8px;
                  font-size: 13px; line-height: 1.45; color: var(--muted); }
@@ -151,6 +186,13 @@ export default defineContentScript({
       <div class="backdrop"></div>
       <div class="stage">
         <div class="spot">
+          <div class="prev" hidden>
+            <div class="phead">
+              <span class="ptitle"></span>
+              <button class="px" title="Cerrar lista">✕</button>
+            </div>
+            <div class="plist"></div>
+          </div>
           <div class="quote" hidden>
             <span class="qbar"></span>
             <span class="qtext"></span>
@@ -194,6 +236,10 @@ export default defineContentScript({
     const quoteBox = $<HTMLDivElement>('.quote');
     const quoteText = $<HTMLSpanElement>('.qtext');
     const quoteClear = $<HTMLButtonElement>('.qx');
+    const prevBox = $<HTMLDivElement>('.prev');
+    const prevTitle = $<HTMLSpanElement>('.ptitle');
+    const prevList = $<HTMLDivElement>('.plist');
+    const prevClose = $<HTMLButtonElement>('.px');
 
     const PLACEHOLDER = 'Escribe una nota…';
     const PLACEHOLDER_QUOTE = 'Añade una nota sobre esta cita…';
@@ -228,14 +274,71 @@ export default defineContentScript({
       setQuote(null);
     };
 
+    // Lista de notas que ya existen en esta página (se abre con Alt+S)
+    let prevShown = false;
+
+    const renderPrev = async () => {
+      const notes = notesForPage(await bookmarksItem.getValue(), location.href);
+      prevTitle.textContent = notes.length
+        ? `${notes.length} ${notes.length === 1 ? 'nota' : 'notas'} en esta página`
+        : 'Aún no hay notas en esta página';
+      if (!notes.length) {
+        const none = document.createElement('div');
+        none.className = 'pempty';
+        none.textContent = 'Escribe la primera abajo.';
+        prevList.replaceChildren(none);
+        return;
+      }
+      prevList.replaceChildren(
+        ...notes.map((n) => {
+          const item = document.createElement('div');
+          item.className = 'pitem';
+          if (n.quote) {
+            const q = document.createElement('div');
+            q.className = 'pq';
+            q.textContent = n.quote;
+            item.append(q);
+          }
+          if (n.note) {
+            const t = document.createElement('div');
+            t.className = 'pn';
+            t.textContent = n.note;
+            item.append(t);
+          }
+          const d = document.createElement('div');
+          d.className = 'pd';
+          const when = new Date(n.date);
+          d.textContent = (isNaN(when.getTime()) ? '' : when.toLocaleString()) + (n.image ? ' · 📷' : '');
+          item.append(d);
+          return item;
+        }),
+      );
+    };
+    const setPrev = async (on: boolean) => {
+      prevShown = on;
+      prevBox.hidden = !on;
+      if (on) await renderPrev();
+    };
+    prevClose.addEventListener('click', () => {
+      setPrev(false);
+      textarea.focus();
+    });
+
     const show = () => {
       site.textContent = location.hostname;
+      // avisa cuántas notas tiene ya esta página (el detalle se ve con Alt+S)
+      bookmarksItem.getValue().then((all) => {
+        const n = notesForPage(all, location.href).length;
+        if (n) site.textContent = `${location.hostname} · ${n} ${n === 1 ? 'nota' : 'notas'} · Alt+S`;
+      });
       host.style.display = 'block'; // reinicia las animaciones
       syncActive();
       textarea.focus();
     };
     const hide = () => {
       host.style.display = 'none';
+      prevShown = false;
+      prevBox.hidden = true;
     };
     // Al abrir con Alt+C se lee la selección ANTES de enfocar el textarea (enfocar la borraría)
     const open = () => {
@@ -244,6 +347,21 @@ export default defineContentScript({
       show();
     };
     const toggle = () => (host.style.display === 'none' ? open() : hide());
+    // Alt+S: abre el cuadro con la lista de notas previas; si ya está abierto, muestra/oculta la lista
+    const toggleNotes = () => {
+      if (host.style.display === 'none') {
+        open();
+        setPrev(true);
+      } else {
+        setPrev(!prevShown);
+      }
+    };
+    // Clic derecho -> "Guardar selección como nota": abre el cuadro con esa cita ya puesta
+    const openWithQuote = (raw: string) => {
+      const q = normalizeQuote(raw);
+      if (q) setQuote(q);
+      show();
+    };
 
     const flash = (text: string, cls: 'ok' | 'err', then?: () => void) => {
       keys.innerHTML = `<span class="${cls}">${text}</span>`;
@@ -258,14 +376,16 @@ export default defineContentScript({
     const save = async () => {
       const note = textarea.value.trim();
       if (!note && !quote) return; // se permite guardar solo la cita sin comentario
-      await addBookmark({ note, url: location.href, quote });
+      await addBookmark({ note, url: location.href, quote, ...pageMeta() });
       reset();
       flash('Guardado ✓', 'ok', hide);
     };
 
-    // Alt+C llega desde el background
+    // Alt+C, Alt+S y el menú contextual llegan desde el background
     browser.runtime.onMessage.addListener((msg) => {
       if (msg?.type === 'toggle-note') toggle();
+      else if (msg?.type === 'show-notes') toggleNotes();
+      else if (msg?.type === 'quote-note') openWithQuote(String(msg.quote ?? ''));
     });
 
     // Clic en el fondo oscuro cierra
@@ -331,7 +451,7 @@ export default defineContentScript({
         show();
         return;
       }
-      await addBookmark({ note: result.note, url: location.href, image: result.image, quote });
+      await addBookmark({ note: result.note, url: location.href, image: result.image, quote, ...pageMeta() });
       reset();
     });
 

@@ -9,6 +9,7 @@ import type { Bookmark } from './bookmarks';
  *   image      -> BLOB con los bytes reales del JPEG (los gestores la previsualizan)
  *   image_mime -> p. ej. image/jpeg
  *   quote      -> texto citado de la página (o NULL)
+ *   title      -> título de la página al guardar (o NULL)
  *   host       -> dominio de la URL (sin www)
  *   folder     -> carpeta que muestra el popup (o NULL si va "sin carpeta")
  */
@@ -21,6 +22,7 @@ CREATE TABLE bookmarks (
   image      BLOB,
   image_mime TEXT,
   quote      TEXT,
+  title      TEXT,
   host       TEXT,
   folder     TEXT
 );
@@ -67,7 +69,7 @@ export function buildDb(
     db.run(SCHEMA);
     db.run('BEGIN');
     const stmt = db.prepare(
-      'INSERT INTO bookmarks (id, url, note, date, image, image_mime, quote, host, folder) VALUES (?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO bookmarks (id, url, note, date, image, image_mime, quote, title, host, folder) VALUES (?,?,?,?,?,?,?,?,?,?)',
     );
     try {
       for (const b of items) {
@@ -81,6 +83,7 @@ export function buildDb(
           img ? img.bytes : null,
           img ? img.mime : null,
           b.quote ?? null,
+          b.title ?? null,
           hostOf(b.url),
           folderById.get(b.id) ?? null,
         ]);
