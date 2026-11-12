@@ -107,28 +107,44 @@ function findQuote(quote: string, anchor: LocateTarget['anchor']): Range | null 
 
 // ---- imágenes ----
 
-const urlKey = (u: string) => {
+const stem = (seg: string) => seg.replace(/(\.[a-z0-9]{2,5})+$/, ''); // "1t.jpg.webp" -> "1t"
+
+/**
+ * Claves de comparación de una URL, de más a menos estricta. Los CDN cambian de subdominio (t1, t3, t5…),
+ * de formato (.jpg / .jpg.webp) o de parámetros entre cargas, así que no basta con comparar la URL exacta.
+ */
+function keysOf(u: string): string[] {
   try {
     const x = new URL(u, location.href);
-    return x.host + x.pathname; // sin query: los parámetros de tamaño/caché suelen cambiar
+    let path = x.pathname;
+    try {
+      path = decodeURIComponent(path);
+    } catch {
+      // se queda como está
+    }
+    path = path.toLowerCase();
+    const segs = path.split('/').filter(Boolean);
+    const keys = [`h:${x.host}${path}`, `p:${path}`];
+    if (segs.length >= 2) keys.push(`s:${segs.slice(-2).map(stem).join('/')}`); // carpeta/archivo, sin extensión
+    return keys;
   } catch {
-    return u;
+    return [`p:${u}`];
   }
-};
+}
 
 function imgKeys(img: HTMLImageElement): string[] {
-  const out = [img.currentSrc, img.src];
-  for (const a of ['data-src', 'data-original', 'data-lazy-src']) out.push(img.getAttribute(a) ?? '');
+  const urls = [img.currentSrc, img.src];
+  for (const a of ['data-src', 'data-original', 'data-lazy-src', 'data-lazy', 'data-url']) urls.push(img.getAttribute(a) ?? '');
   for (const attr of ['srcset', 'data-srcset']) {
     const ss = img.getAttribute(attr);
-    if (ss) ss.split(',').forEach((p) => out.push(p.trim().split(/\s+/)[0]));
+    if (ss) ss.split(',').forEach((p) => urls.push(p.trim().split(/\s+/)[0]));
   }
-  return out.filter((u) => u && !u.startsWith('data:')).map(urlKey);
+  return urls.filter((u) => u && !u.startsWith('data:')).flatMap(keysOf);
 }
 
 /** <img> de la página que corresponden a esas URLs (también las de carga perezosa: data-src, srcset…). */
 export function findImages(srcs: string[]): HTMLImageElement[] {
-  const want = new Set(srcs.filter((s) => /^https?:/i.test(s)).map(urlKey));
+  const want = new Set(srcs.filter((s) => /^https?:/i.test(s)).flatMap(keysOf));
   if (!want.size) return [];
   return [...document.images].filter((img) => imgKeys(img).some((k) => want.has(k)));
 }
@@ -223,10 +239,31 @@ export async function locateNote(t: LocateTarget): Promise<void> {
   }
 
   if (range || imgs.length) {
-    const rects = () => [...(range ? [...range.getClientRects()] : []), ...imgs.map((i) => i.getBoundingClientRect())].filter(nonEmpty);
-    const first = rects().sort((a, b) => a.top - b.top)[0];
-    if (first) window.scrollTo({ top: Math.max(0, first.top + window.scrollY - window.innerHeight / 3), behavior: 'smooth' });
+    // una imagen sin cargar puede medir 0: en ese caso se usa el contenedor visible más cercano
+    const imgRect = (i: HTMLImageElement) => {
+      let el: Element = i;
+      let r = i.getBoundingClientRect();
+      while (!nonEmpty(r) && el.parentElement && el !== document.body) {
+        el = el.parentElement;
+        r = el.getBoundingClientRect();
+      }
+      return r;
+    };
+    const rects = () =>
+      [...(range ? [...range.getClientRects()] : []), ...imgs.map(imgRect)].filter(nonEmpty).sort((a, b) => a.top - b.top);
+    const goTo = (behavior: ScrollBehavior) => {
+      const f = rects()[0];
+      if (f) window.scrollTo({ top: Math.max(0, f.top + window.scrollY - window.innerHeight / 3), behavior });
+    };
+    goTo('smooth');
     showMarker(rects, '📍 Nota localizada');
+    // en blogs largos las imágenes de arriba terminan de cargar y mueven todo: reajusta si se salió de la vista
+    for (const ms of [1500, 3500]) {
+      window.setTimeout(() => {
+        const f = rects()[0];
+        if (f && (f.top < 0 || f.top > window.innerHeight * 0.7)) goTo('smooth');
+      }, ms);
+    }
     return;
   }
 

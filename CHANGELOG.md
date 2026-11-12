@@ -19,6 +19,10 @@
 - Campos nuevos opcionales en la nota: `imageSrcs` (URL original de cada imagen) y `anchor` (posición en la página). `fragment` queda como respaldo para Ctrl/Shift/clic central sobre el enlace.
 - Archivo nuevo: `locate.ts` (junto al content script).
 
+### Corregido (imágenes al ubicar la nota)
+- Las imágenes ahora se encuentran aunque el sitio cambie de subdominio de CDN (t1/t3/t5…), de formato (`.jpg` / `.jpg.webp`) o de parámetros entre cargas: se comparan por varias claves (host+ruta, ruta, carpeta/archivo sin extensión).
+- Si la imagen aún no tiene tamaño (carga perezosa), el marcador usa su contenedor visible; y la vista se reajusta tras unos segundos si el layout se movió.
+
 ### Cambiado
 - **Enlace a la cita (text fragment):** ahora el fragmento se calcula al seleccionar, partiendo el texto por bloques de la página, y se guarda en el nuevo campo opcional `fragment`. Usa la forma `inicio,fin`, así la cita se resalta aunque cruce varios bloques (etiquetas `inline-block`/`flex`, como en nhentai.net). Las notas viejas siguen usando el método anterior.
 - Modelo `Bookmark`: nuevo campo opcional `images?: string[] | null`. Las notas anteriores siguen funcionando sin migración.
