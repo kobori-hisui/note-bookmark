@@ -10,6 +10,7 @@ export interface Bookmark {
   quote?: string | null; // texto seleccionado en la página al que se refiere la nota (opcional; notas viejas no lo tienen)
   title?: string | null; // document.title al guardar (opcional; notas viejas no lo tienen)
   favicon?: string | null; // URL del ícono del sitio (opcional)
+  images?: string[] | null; // imágenes de la página (dataURL JPEG) guardadas con clic derecho (opcional)
 }
 
 export const bookmarksItem = storage.defineItem<Bookmark[]>('local:bookmarks', {
@@ -23,6 +24,7 @@ export interface NewBookmark {
   quote?: string | null;
   title?: string | null;
   favicon?: string | null;
+  images?: string[] | null;
 }
 
 const time = (b: Bookmark) => Date.parse(b.date) || 0;
@@ -38,6 +40,7 @@ export async function addBookmark(input: NewBookmark): Promise<Bookmark> {
     quote: input.quote ?? null,
     title: input.title?.trim() || null,
     favicon: input.favicon ?? null,
+    images: input.images?.length ? input.images : null,
   };
   const list = await bookmarksItem.getValue();
   await bookmarksItem.setValue([bookmark, ...list]);
@@ -91,6 +94,8 @@ export function combineBookmarks(parts: Bookmark[]): Bookmark | string {
     })
     .filter(Boolean);
 
+  const allImages = sorted.flatMap((b) => b.images ?? []);
+
   const first = sorted[0];
   return {
     id: first.id,
@@ -101,5 +106,6 @@ export function combineBookmarks(parts: Bookmark[]): Bookmark | string {
     quote: mainQuote,
     title: sorted.find((b) => b.title)?.title ?? null,
     favicon: sorted.find((b) => b.favicon)?.favicon ?? null,
+    images: allImages.length ? allImages : null,
   };
 }

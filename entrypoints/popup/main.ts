@@ -38,6 +38,11 @@ const rerender = () => render(all);
 
 // ---- tarjeta de nota ----
 
+async function openDataUrl(url: string) {
+  const blob = await (await fetch(url)).blob();
+  window.open(URL.createObjectURL(blob), '_blank');
+}
+
 function renderCard(b: Bookmark, showTitle = true): HTMLElement {
   if (b.id === editingId) return renderEditCard(b);
 
@@ -85,11 +90,22 @@ function renderCard(b: Bookmark, showTitle = true): HTMLElement {
     const img = document.createElement('img');
     img.src = b.image;
     img.title = 'Abrir imagen completa';
-    img.onclick = async () => {
-      const blob = await (await fetch(b.image!)).blob();
-      window.open(URL.createObjectURL(blob), '_blank');
-    };
+    img.onclick = () => openDataUrl(b.image!);
     card.append(img);
+  }
+
+  if (b.images?.length) {
+    const gallery = document.createElement('div');
+    gallery.className = 'gallery';
+    for (const src of b.images) {
+      const im = document.createElement('img');
+      im.src = src;
+      im.loading = 'lazy';
+      im.title = 'Abrir imagen completa';
+      im.onclick = () => openDataUrl(src);
+      gallery.append(im);
+    }
+    card.append(gallery);
   }
 
   if (b.quote) {
@@ -187,7 +203,7 @@ function renderEditCard(b: Bookmark): HTMLElement {
       err.hidden = false;
       return;
     }
-    if (!n && !b.quote && !b.image) {
+    if (!n && !b.quote && !b.image && !b.images?.length) {
       err.textContent = 'La nota está vacía.';
       err.hidden = false;
       return;

@@ -28,6 +28,9 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
   if (typeof o.id !== 'string' || !o.id) return null;
   if (typeof o.note !== 'string' || typeof o.date !== 'string') return null;
   if (typeof o.url !== 'string' || !isSafeUrl(o.url)) return null;
+  const images = Array.isArray(o.images)
+    ? o.images.filter((s): s is string => typeof s === 'string' && s.startsWith('data:image/'))
+    : [];
   return {
     id: o.id,
     url: o.url,
@@ -37,6 +40,7 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
     quote: typeof o.quote === 'string' && o.quote ? o.quote : null,
     title: typeof o.title === 'string' && o.title.trim() ? o.title.trim() : null,
     favicon: webUrl(o.favicon),
+    images: images.length ? images : null,
   };
 }
 

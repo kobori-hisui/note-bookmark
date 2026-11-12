@@ -1,5 +1,6 @@
 import { addBookmark, bookmarksItem } from '@/utils/bookmarks';
 import { notesForPage } from '@/utils/folders';
+import { blobToJpegDataUrl } from '@/utils/image';
 import { normalizeQuote } from '@/utils/quote';
 import { openEditor } from './editor';
 import { cropImage, selectRegion } from './selector';
@@ -14,6 +15,37 @@ function readSelection(): string {
     return normalizeQuote(window.getSelection()?.toString() ?? '');
   } catch {
     return ''; // p. ej. input type=email lanza al leer selectionStart
+  }
+}
+
+const MAX_IMAGES = 30;
+
+/** URLs de las imágenes dentro de la selección actual + la imagen donde se hizo clic derecho. */
+function collectImageSrcs(clicked?: string): string[] {
+  const out: string[] = [];
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed) {
+    for (const img of document.images) {
+      if (img.clientWidth < 40 || img.clientHeight < 40) continue; // íconos y píxeles de seguimiento
+      if (!sel.containsNode(img, true)) continue;
+      const s = img.currentSrc || img.src;
+      if (s && !out.includes(s)) out.push(s);
+    }
+  }
+  if (clicked && !out.includes(clicked)) out.unshift(clicked);
+  return out.slice(0, MAX_IMAGES);
+}
+
+/** Baja una imagen y la devuelve como dataURL JPEG. null si no se pudo. */
+async function loadImage(src: string): Promise<string | null> {
+  try {
+    if (src.startsWith('data:image/')) return src;
+    if (src.startsWith('blob:')) return await blobToJpegDataUrl(await (await fetch(src)).blob());
+    if (!/^https?:/i.test(src)) return null;
+    const res = await browser.runtime.sendMessage({ type: 'fetch-image', url: src }); // lo baja el background (sin CORS)
+    return typeof res?.dataUrl === 'string' ? res.dataUrl : null;
+  } catch {
+    return null;
   }
 }
 
@@ -129,6 +161,17 @@ export default defineContentScript({
               background: transparent; color: var(--muted); font-size: 11px; line-height: 20px; }
         .qx:hover { background: var(--chip); color: var(--fg); }
 
+        /* Imágenes de la página adjuntas a la nota */
+        .imgs { display: flex; align-items: center; gap: 10px; padding: 4px 6px 10px 8px; }
+        .imgs[hidden] { display: none; }
+        .ithumbs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; max-height: 128px; overflow: auto; }
+        .thumb { position: relative; flex: none; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: var(--field); }
+        .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .thumb button { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%;
+                        cursor: pointer; background: rgba(0,0,0,.65); color: #fff; font-size: 9px; line-height: 16px; }
+        .thumb button:hover { background: var(--accent); }
+        .istatus { flex: none; font-size: 12px; color: var(--muted); }
+
         .field {
           display: flex; align-items: center; gap: 12px;
           min-height: 48px; padding: 0 12px 0 14px;
@@ -198,6 +241,10 @@ export default defineContentScript({
             <span class="qtext"></span>
             <button class="qx" title="Quitar referencia">✕</button>
           </div>
+          <div class="imgs" hidden>
+            <div class="ithumbs"></div>
+            <span class="istatus"></span>
+          </div>
           <div class="field">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
@@ -240,12 +287,19 @@ export default defineContentScript({
     const prevTitle = $<HTMLSpanElement>('.ptitle');
     const prevList = $<HTMLDivElement>('.plist');
     const prevClose = $<HTMLButtonElement>('.px');
+    const imgsBox = $<HTMLDivElement>('.imgs');
+    const imgThumbs = $<HTMLDivElement>('.ithumbs');
+    const imgStatus = $<HTMLSpanElement>('.istatus');
 
     const PLACEHOLDER = 'Escribe una nota…';
     const PLACEHOLDER_QUOTE = 'Añade una nota sobre esta cita…';
 
     // Texto de la página al que se refiere la nota (se captura al abrir con Alt+C)
     let quote: string | null = null;
+    // Imágenes de la página adjuntas (clic derecho sobre una imagen o sobre una selección con imágenes)
+    let images: { src: string; data: string }[] = [];
+    let loading = 0;
+    let pending: Promise<void> = Promise.resolve(); // descargas en curso; guardar espera a que terminen
 
     const KEYS_HTML = `
       <span><kbd>↵</kbd> guardar</span>
@@ -254,7 +308,7 @@ export default defineContentScript({
     const setKeys = () => (keys.innerHTML = KEYS_HTML);
     setKeys();
 
-    const syncActive = () => spot.classList.toggle('active', textarea.value.length > 0 || !!quote);
+    const syncActive = () => spot.classList.toggle('active', textarea.value.length > 0 || !!quote || images.length > 0);
     const setQuote = (q: string | null) => {
       quote = q;
       quoteBox.hidden = !q;
@@ -262,6 +316,54 @@ export default defineContentScript({
       quoteText.title = q ?? '';
       textarea.placeholder = q ? PLACEHOLDER_QUOTE : PLACEHOLDER;
       syncActive();
+    };
+    const renderImages = () => {
+      imgsBox.hidden = !images.length && !loading;
+      imgThumbs.replaceChildren(
+        ...images.map((it, i) => {
+          const t = document.createElement('div');
+          t.className = 'thumb';
+          const im = document.createElement('img');
+          im.src = it.data;
+          im.alt = '';
+          const x = document.createElement('button');
+          x.textContent = '✕';
+          x.title = 'Quitar imagen';
+          x.addEventListener('click', () => {
+            images.splice(i, 1);
+            renderImages();
+            textarea.focus();
+          });
+          t.append(im, x);
+          return t;
+        }),
+      );
+      imgStatus.textContent = loading
+        ? `Descargando ${loading}…`
+        : images.length
+          ? `${images.length} imagen${images.length === 1 ? '' : 'es'}`
+          : '';
+      syncActive();
+    };
+    const addImages = (srcs: string[]) => {
+      const fresh = [...new Set(srcs)].filter((s) => !images.some((i) => i.src === s));
+      if (!fresh.length) return;
+      loading += fresh.length;
+      renderImages();
+      const job = Promise.all(
+        fresh.map(async (src) => {
+          const data = await loadImage(src);
+          loading--;
+          renderImages();
+          return data ? { src, data } : null;
+        }),
+      ).then((res) => {
+        const ok = res.filter((r): r is { src: string; data: string } => r !== null);
+        for (const r of ok) if (!images.some((i) => i.src === r.src)) images.push(r);
+        renderImages();
+        if (ok.length < res.length) flash(`${res.length - ok.length} sin descargar`, 'err');
+      });
+      pending = pending.then(() => job);
     };
     const autosize = () => {
       textarea.style.height = '24px';
@@ -272,6 +374,8 @@ export default defineContentScript({
       textarea.value = '';
       autosize();
       setQuote(null);
+      images = [];
+      renderImages();
     };
 
     // Lista de notas que ya existen en esta página (se abre con Alt+S)
@@ -308,7 +412,9 @@ export default defineContentScript({
           const d = document.createElement('div');
           d.className = 'pd';
           const when = new Date(n.date);
-          d.textContent = (isNaN(when.getTime()) ? '' : when.toLocaleString()) + (n.image ? ' · 📷' : '');
+          d.textContent = (isNaN(when.getTime()) ? '' : when.toLocaleString()) +
+            (n.image ? ' · 📷' : '') +
+            (n.images?.length ? ` · 🖼 ${n.images.length}` : '');
           item.append(d);
           return item;
         }),
@@ -344,6 +450,7 @@ export default defineContentScript({
     const open = () => {
       const sel = readSelection();
       if (sel) setQuote(sel);
+      addImages(collectImageSrcs()); // imágenes dentro de la selección (también antes de enfocar)
       show();
     };
     const toggle = () => (host.style.display === 'none' ? open() : hide());
@@ -357,9 +464,10 @@ export default defineContentScript({
       }
     };
     // Clic derecho -> "Guardar selección como nota": abre el cuadro con esa cita ya puesta
-    const openWithQuote = (raw: string) => {
+    const openWithQuote = (raw: string, srcUrl?: string) => {
       const q = normalizeQuote(raw);
       if (q) setQuote(q);
+      addImages(collectImageSrcs(srcUrl));
       show();
     };
 
@@ -374,9 +482,10 @@ export default defineContentScript({
     };
 
     const save = async () => {
+      await pending; // espera a que terminen de bajar las imágenes
       const note = textarea.value.trim();
-      if (!note && !quote) return; // se permite guardar solo la cita sin comentario
-      await addBookmark({ note, url: location.href, quote, ...pageMeta() });
+      if (!note && !quote && !images.length) return; // se permite guardar solo la cita o solo imágenes
+      await addBookmark({ note, url: location.href, quote, images: images.map((i) => i.data), ...pageMeta() });
       reset();
       flash('Guardado ✓', 'ok', hide);
     };
@@ -385,7 +494,7 @@ export default defineContentScript({
     browser.runtime.onMessage.addListener((msg) => {
       if (msg?.type === 'toggle-note') toggle();
       else if (msg?.type === 'show-notes') toggleNotes();
-      else if (msg?.type === 'quote-note') openWithQuote(String(msg.quote ?? ''));
+      else if (msg?.type === 'quote-note') openWithQuote(String(msg.quote ?? ''), typeof msg.srcUrl === 'string' ? msg.srcUrl : undefined);
     });
 
     // Clic en el fondo oscuro cierra
@@ -451,7 +560,15 @@ export default defineContentScript({
         show();
         return;
       }
-      await addBookmark({ note: result.note, url: location.href, image: result.image, quote, ...pageMeta() });
+      await pending;
+      await addBookmark({
+        note: result.note,
+        url: location.href,
+        image: result.image,
+        quote,
+        images: images.map((i) => i.data),
+        ...pageMeta(),
+      });
       reset();
     });
 

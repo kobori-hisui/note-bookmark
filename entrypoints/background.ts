@@ -1,11 +1,23 @@
 import { bookmarksItem } from '@/utils/bookmarks';
 import { notesForPage } from '@/utils/folders';
+import { blobToJpegDataUrl } from '@/utils/image';
 
 const MENU_ID = 'save-selection';
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+
+/** Descarga una imagen desde el background (con host_permissions no choca con CORS) y la reduce a JPEG. */
+async function fetchImage(url: string): Promise<string> {
+  if (!/^https?:/i.test(url)) throw new Error('URL no válida');
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  if (blob.size > MAX_IMAGE_BYTES) throw new Error('imagen demasiado grande');
+  return blobToJpegDataUrl(blob);
+}
 
 export default defineBackground(() => {
   /** Manda un mensaje al content script de la pestaña. Ignora pestañas sin script. */
-  async function sendToTab(tabId: number, message: { type: string; quote?: string }) {
+  async function sendToTab(tabId: number, message: { type: string; quote?: string; srcUrl?: string }) {
     try {
       await browser.tabs.sendMessage(tabId, message);
     } catch {
@@ -21,18 +33,22 @@ export default defineBackground(() => {
     await sendToTab(tab.id, { type: command });
   });
 
-  // Clic derecho sobre texto seleccionado -> abre el cuadro de nota con esa cita
+  // Clic derecho sobre texto seleccionado o sobre una imagen -> abre el cuadro de nota con esa cita / imagen
   browser.runtime.onInstalled.addListener(async () => {
     await browser.contextMenus.removeAll();
     browser.contextMenus.create({
       id: MENU_ID,
-      title: 'Guardar selección como nota',
-      contexts: ['selection'],
+      title: 'Guardar como nota',
+      contexts: ['selection', 'image'],
     });
   });
   browser.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== MENU_ID || tab?.id == null) return;
-    sendToTab(tab.id, { type: 'quote-note', quote: info.selectionText ?? '' });
+    sendToTab(tab.id, {
+      type: 'quote-note',
+      quote: info.selectionText ?? '',
+      srcUrl: info.mediaType === 'image' ? info.srcUrl : undefined,
+    });
   });
 
   // Contador en el ícono: cuántas notas tiene la página de la pestaña
@@ -68,6 +84,12 @@ export default defineBackground(() => {
 
   // Botón de captura -> screenshot de la pestaña visible
   browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type === 'fetch-image') {
+      fetchImage(String(msg.url))
+        .then((dataUrl) => sendResponse({ dataUrl }))
+        .catch((err) => sendResponse({ error: String(err) }));
+      return true; // respuesta async
+    }
     if (msg?.type !== 'capture') return;
     browser.tabs
       .captureVisibleTab(sender.tab!.windowId, { format: 'png' })

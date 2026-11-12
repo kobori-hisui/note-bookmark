@@ -75,3 +75,7 @@ img.fav { flex: none; width: 14px; height: 14px; max-height: none; margin: 0; bo
 /* cita */
 .quote { border-left: 3px solid #e11d1d; padding: 2px 8px; margin-bottom: 6px; color: #bbb; font-style: italic;
          white-space: pre-wrap; word-break: break-word; max-height: 7em; overflow: auto; }
+
+/* imágenes de la página guardadas con clic derecho */
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; margin-bottom: 6px; }
+.gallery img { height: 90px; max-height: none; margin: 0; object-fit: cover; }

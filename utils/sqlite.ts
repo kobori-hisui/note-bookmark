@@ -12,6 +12,8 @@ import type { Bookmark } from './bookmarks';
  *   title      -> título de la página al guardar (o NULL)
  *   host       -> dominio de la URL (sin www)
  *   folder     -> carpeta que muestra el popup (o NULL si va "sin carpeta")
+ *
+ * Tabla bookmark_images: las imágenes de la página guardadas con clic derecho (varias por nota).
  */
 export const SCHEMA = `
 CREATE TABLE bookmarks (
@@ -28,7 +30,14 @@ CREATE TABLE bookmarks (
 );
 CREATE INDEX idx_bookmarks_date ON bookmarks(date);
 CREATE INDEX idx_bookmarks_host ON bookmarks(host);
-PRAGMA user_version = 1;
+CREATE TABLE bookmark_images (
+  bookmark_id TEXT NOT NULL REFERENCES bookmarks(id),
+  position    INTEGER NOT NULL,
+  image       BLOB NOT NULL,
+  image_mime  TEXT NOT NULL,
+  PRIMARY KEY (bookmark_id, position)
+);
+PRAGMA user_version = 2;
 `;
 
 /** dataURL (data:image/jpeg;base64,...) -> bytes + mime. null si no es una imagen base64 válida. */
@@ -71,6 +80,7 @@ export function buildDb(
     const stmt = db.prepare(
       'INSERT INTO bookmarks (id, url, note, date, image, image_mime, quote, title, host, folder) VALUES (?,?,?,?,?,?,?,?,?,?)',
     );
+    const imgStmt = db.prepare('INSERT INTO bookmark_images (bookmark_id, position, image, image_mime) VALUES (?,?,?,?)');
     try {
       for (const b of items) {
         const img = dataUrlToImage(b.image);
@@ -87,9 +97,14 @@ export function buildDb(
           hostOf(b.url),
           folderById.get(b.id) ?? null,
         ]);
+        (b.images ?? []).forEach((d, i) => {
+          const x = dataUrlToImage(d);
+          if (x) imgStmt.run([b.id, i, x.bytes, x.mime]);
+        });
       }
     } finally {
       stmt.free();
+      imgStmt.free();
     }
     db.run('COMMIT');
     return db.export();
