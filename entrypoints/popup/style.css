@@ -23,6 +23,11 @@ details[open] > summary::before { transform: rotate(90deg); }
 .items { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
 .section { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; margin: 6px 2px 0; }
 
+/* subcarpeta (artículo) */
+details.sub { background: #1f1f1f; border-color: #3a3a3a; border-radius: 8px; }
+details.sub > summary { padding: 6px 8px; }
+details.sub .fname { font-weight: 500; font-size: 12px; color: #ccc; }
+
 /* cabecera / respaldo */
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 header h1 { margin: 0; }

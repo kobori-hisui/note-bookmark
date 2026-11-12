@@ -69,30 +69,42 @@ function renderCard(b: Bookmark): HTMLElement {
   return card;
 }
 
-function renderFolder(f: Folder): HTMLElement {
+function renderDetails(openKey: string, label: string, title: string, count: number, children: HTMLElement[], cls = ''): HTMLElement {
   const details = document.createElement('details');
-  details.open = openFolders.has(f.key);
+  if (cls) details.className = cls;
+  details.open = openFolders.has(openKey);
   details.addEventListener('toggle', () => {
-    if (details.open) openFolders.add(f.key);
-    else openFolders.delete(f.key);
+    if (details.open) openFolders.add(openKey);
+    else openFolders.delete(openKey);
   });
 
   const summary = document.createElement('summary');
   const name = document.createElement('span');
   name.className = 'fname';
-  name.textContent = `📁 ${folderLabel(f.key)}`;
-  name.title = folderLabel(f.key);
-  const count = document.createElement('span');
-  count.className = 'count';
-  count.textContent = String(f.items.length);
-  summary.append(name, count);
+  name.textContent = label;
+  name.title = title;
+  const badge = document.createElement('span');
+  badge.className = 'count';
+  badge.textContent = String(count);
+  summary.append(name, badge);
 
   const items = document.createElement('div');
   items.className = 'items';
-  items.append(...f.items.map(renderCard));
+  items.append(...children);
 
   details.append(summary, items);
   return details;
+}
+
+function renderFolder(f: Folder): HTMLElement {
+  // subcarpetas (artículos con varias notas) primero, luego las notas sueltas de la carpeta
+  const subs = f.subfolders.map((s) =>
+    renderDetails(`${f.key}|${s.key}`, `📄 ${s.label}`, s.key, s.items.length, s.items.map(renderCard), 'sub'),
+  );
+  return renderDetails(f.key, `📁 ${folderLabel(f.key)}`, folderLabel(f.key), f.items.length, [
+    ...subs,
+    ...f.rest.map(renderCard),
+  ]);
 }
 
 function render(items: Bookmark[]) {

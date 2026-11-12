@@ -13,9 +13,20 @@ export const MIN_NOTES_FOR_FOLDER = 3;
 
 const OTHER = 'otros';
 
+/** Cuántas notas de UNA misma página hacen falta para que sea subcarpeta dentro de su carpeta. */
+export const MIN_NOTES_FOR_SUBFOLDER = 2;
+
+export interface SubFolder {
+  key: string; // host + ruta completa (sin query ni hash)
+  label: string; // p. ej. "/evil-angel-drops-vince-karters-miami-vixens"
+  items: Bookmark[]; // más recientes primero
+  latest: number;
+}
 export interface Folder {
   key: string;
-  items: Bookmark[]; // más recientes primero
+  items: Bookmark[]; // TODAS las notas de la carpeta (incluye las de subcarpetas), más recientes primero
+  subfolders: SubFolder[]; // páginas con muchas notas
+  rest: Bookmark[]; // notas de la carpeta que no están en ninguna subcarpeta
   latest: number; // timestamp de la nota más reciente
 }
 export interface Grouped {
@@ -117,6 +128,39 @@ function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
   else m.set(k, [v]);
 }
 
+// ---- subcarpetas: una página concreta (artículo) con varias notas ----
+
+/** Identifica la página: host + ruta completa, sin query, hash ni "/" final. null si no aplica. */
+export function pageKey(url: string): { key: string; label: string } | null {
+  const p = parse(url);
+  if (!p || !p.segs.length) return null;
+  const key = `${p.host}/${p.segs.join('/')}`;
+  // etiqueta: el último segmento que no sea solo un número (el slug del artículo)
+  const slug = [...p.segs].reverse().find((s) => !NUMERIC.test(s)) ?? p.segs[p.segs.length - 1];
+  return { key, label: '/' + slug };
+}
+
+function splitSubfolders(sorted: Bookmark[], min = MIN_NOTES_FOR_SUBFOLDER) {
+  const byPage = new Map<string, { label: string; items: Bookmark[] }>();
+  for (const b of sorted) {
+    const pk = pageKey(b.url);
+    if (!pk) continue;
+    const g = byPage.get(pk.key);
+    if (g) g.items.push(b);
+    else byPage.set(pk.key, { label: pk.label, items: [b] });
+  }
+
+  const subfolders: SubFolder[] = [];
+  const inSub = new Set<string>();
+  for (const [key, g] of byPage) {
+    if (g.items.length < min) continue;
+    g.items.forEach((b) => inSub.add(b.id));
+    subfolders.push({ key, label: g.label, items: g.items, latest: time(g.items[0]) });
+  }
+  subfolders.sort((a, b) => b.latest - a.latest);
+  return { subfolders, rest: sorted.filter((b) => !inSub.has(b.id)) };
+}
+
 export function groupBookmarks(items: Bookmark[], min = MIN_NOTES_FOR_FOLDER): Grouped {
   const keyed = items.map((b) => ({ b, ...folderKeys(b.url) }));
 
@@ -143,7 +187,8 @@ export function groupBookmarks(items: Bookmark[], min = MIN_NOTES_FOR_FOLDER): G
 
   const folders: Folder[] = [...assigned.entries()].map(([key, arr]) => {
     arr.sort(newestFirst);
-    return { key, items: arr, latest: time(arr[0]) };
+    const { subfolders, rest } = splitSubfolders(arr);
+    return { key, items: arr, subfolders, rest, latest: time(arr[0]) };
   });
   folders.sort((a, b) => b.latest - a.latest);
   loose.sort(newestFirst);
