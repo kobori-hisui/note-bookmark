@@ -518,7 +518,7 @@ document.getElementById('import')!.addEventListener('click', async () => {
     return;
   }
   // desde el popup: abrir la pestaña completa, donde el selector de archivos no cierra la ventana
-  await browser.tabs.create({ url: browser.runtime.getURL('/popup.html?tab=1') });
+  await browser.tabs.create({ url: browser.runtime.getURL('/dashboard.html') });
   window.close();
 });
 

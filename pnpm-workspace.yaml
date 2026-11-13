@@ -1,3 +1,4 @@
 allowBuilds:
   esbuild: false
+  pnpm: false
   spawn-sync: false

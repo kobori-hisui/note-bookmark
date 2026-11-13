@@ -599,11 +599,19 @@ export default defineContentScript({
       renderFolderOpts();
     };
 
+    // autocompletar "/carpeta" mientras se escribe en la nota
+    const INLINE_PREFIX = /^\/"?([^\s"]*)$/;
+    let inlineMode = false;
+
     const closeFolderPicker = () => {
       fpick.hidden = true;
+      inlineMode = false;
+      fInput.style.display = '';
       textarea.focus();
     };
     const openFolderPicker = async () => {
+      inlineMode = false;
+      fInput.style.display = '';
       fpick.hidden = false;
       fInput.value = '';
       fsel = 0;
@@ -612,8 +620,40 @@ export default defineContentScript({
       fInput.focus();
     };
     const chooseFolder = async (o: FolderOpt) => {
+      if (inlineMode && o.value) {
+        // completa el texto: /sisters-friends  (o /"mi tesis"  si tiene espacios)
+        textarea.value = /\s/.test(o.value) ? `/"${o.value}" ` : `/${o.value} `;
+        closeFolderPicker();
+        autosize();
+        syncActive();
+        refreshFolderBtn();
+        return;
+      }
       closeFolderPicker();
       await setActiveFolder(o.value);
+    };
+
+    const updateInlineSuggest = async () => {
+      const m = INLINE_PREFIX.exec(textarea.value);
+      if (!m) {
+        if (inlineMode) {
+          inlineMode = false;
+          fpick.hidden = true;
+          fInput.style.display = '';
+        }
+        return;
+      }
+      inlineMode = true;
+      await loadFolderNames();
+      if (!inlineMode) return; // el usuario siguió escribiendo y salió del modo mientras cargaba
+      const ql = m[1].toLowerCase();
+      fopts = folderNames
+        .filter((f) => f.name.toLowerCase().includes(ql))
+        .map((f) => ({ label: f.name, sub: f.count ? `${f.count} nota${f.count === 1 ? '' : 's'}` : 'nueva', value: f.name }));
+      fsel = 0;
+      fInput.style.display = 'none';
+      fpick.hidden = !fopts.length;
+      renderFolderOpts();
     };
 
     folderBtn.addEventListener('click', () => (fpick.hidden ? openFolderPicker() : closeFolderPicker()));
@@ -811,11 +851,25 @@ export default defineContentScript({
       autosize();
       syncActive();
       refreshFolderBtn();
+      updateInlineSuggest();
     });
     textarea.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         hide();
         return;
+      }
+      if (inlineMode && !fpick.hidden && fopts.length) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          fsel = (fsel + (e.key === 'ArrowDown' ? 1 : -1) + fopts.length) % fopts.length;
+          renderFolderOpts();
+          return;
+        }
+        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.isComposing)) {
+          e.preventDefault();
+          chooseFolder(fopts[fsel]);
+          return;
+        }
       }
       if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
