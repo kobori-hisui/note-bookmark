@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0] - 2026-11-12
+
+### Agregado (panel de administración)
+- **Panel completo en una pestaña** (`entrypoints/dashboard/`, React + TypeScript), pensado para trabajar con muchas notas. Se abre desde el popup y se publica como `/dashboard.html`. El popup se mantiene como acceso rápido.
+- **Notas:** vista de tabla o cuadrícula (se recuerda la elección), búsqueda global en notas, citas, títulos, URLs y carpetas (atajo `/`), filtros por carpeta, fecha e imágenes, y orden (recientes, antiguas, por sitio). Carga por tandas de 60 con «Mostrar más».
+- **Acciones en lote:** selección múltiple (Shift+clic para rangos) para mover a carpeta, fusionar, exportar la selección o borrar. Todas con aviso y **Deshacer**.
+- **Panel de detalle** de cada nota: imágenes con visor, cita y edición de título, texto, URL y carpeta, además de abrir y ubicar la nota en su página.
+- **Carpetas:** listado con tipo (manual / automática), cantidad de notas y última nota. Renombrar (si el nombre ya existe, se fusionan) y quitar carpetas manuales; sus notas vuelven al agrupado automático. La carpeta activa sigue el cambio de nombre.
+- **Estadísticas:** notas, carpetas, sitios, notas con imágenes, espacio usado, notas por día (30 días) y rankings de sitios y carpetas.
+- **Datos:** exportar JSON o `.db` e importar JSON (suma sin pisar nada).
+- **Ajustes:** modo de imágenes, descarga masiva con progreso, liberar espacio y carpeta activa.
+- **Estructura modular para escalar:** una sección nueva = `pages/Nueva.tsx` + una línea en `routes.tsx`; filtros en `lib/search.ts`; acciones con deshacer en `lib/useActions.ts`; componentes base en `components/ui/`; estado en `store/`. Toda la lógica de datos está en `lib/` sin React. Reutiliza `utils/` tal cual, sin duplicar código.
+- Dependencias nuevas: `react`, `react-dom`, `@wxt-dev/module-react`. Sin librerías de gráficos ni de rutas (CSS puro y router por hash).
+
+### Agregado (autocompletado de carpeta)
+- **Sugerencias al escribir `/carpeta`** en el cuadro de nota (antes solo existía el selector con `Tab`). Al escribir `/` o `/sis…` al inicio aparece la lista de carpetas que coinciden; ↑ ↓ eligen y `Tab` o `Enter` completan (`/sisters-friends `, o `/"mi tesis" ` si lleva espacios). Sin coincidencias no aparece nada y `Enter` guarda normal, así que crear una carpeta nueva sigue igual.
+
+### Limitaciones conocidas
+- Las sugerencias solo listan carpetas **manuales** que tengan alguna nota o sean la carpeta activa. Una carpeta recién creada sin notas aparece solo mientras sea la activa.
+- La tabla de notas usa «Mostrar más» en vez de virtualización; con decenas de miles de notas conviene migrar el almacenamiento a IndexedDB.
+
+### Archivos modificados
+`entrypoints/content/index.ts` (autocompletado), `entrypoints/popup/main.ts` (botón al panel), `wxt.config.ts` (`modules: ['@wxt-dev/module-react']`, fuera de `manifest`), `tsconfig.json` (`jsx: react-jsx`), `package.json`
+**Nuevo:** `entrypoints/dashboard/` (`index.html`, `main.tsx`, `App.tsx`, `routes.tsx`, `style.css`, `pages/`, `components/`, `lib/`, `store/`)
+
 ## [0.2.0] - 2026-11-12
 
 ### Agregado
