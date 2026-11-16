@@ -200,3 +200,11 @@ kbd { font: 11px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px; 
 .lb-note-body { padding: 10px 14px; overflow-y: auto; }
 .lb-note-text { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.5; user-select: text; }
 .lb-note-foot { padding: 8px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; }
+
+/* Modo explorador (como los marcadores de Chrome): filas de carpeta y ruta */
+.folder-row-item .thumb-fallback { font-size: 22px; }
+.folder-card { align-items: stretch; }
+.folder-card-icon { display: grid; place-items: center; height: 90px; font-size: 40px; background: var(--panel-2); }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 4px 0 12px; font-size: 13px; }
+.crumb { background: none; border: 0; padding: 2px 4px; border-radius: 6px; color: var(--accent, #e5484d); cursor: pointer; font: inherit; }
+.crumb:hover { background: var(--panel-2); }

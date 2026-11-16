@@ -16,15 +16,21 @@ export interface FolderInfo {
   ownCount: number;
   latest: number;
   pages: number; // páginas con varias notas dentro de la carpeta
+  /** Notas que están directamente en la carpeta, sin las de sus carpetas hijas ni las de sus páginas (lo que se ve al «entrar»). */
+  directIds: Set<string>;
+  /** Claves de lo que se ve como carpeta al entrar: primero las carpetas hijas, luego las páginas. */
+  childKeys: string[];
+  /** true = «carpeta de página»: una página con varias notas dentro de su carpeta (igual que en el popup). Calculada, no se guarda. */
+  page?: boolean;
 }
 
 interface Ctx {
   items: Bookmark[];
   ready: boolean;
   byId: Map<string, Bookmark>;
-  /** Todas las carpetas, más recientes primero. */
+  /** Todas las carpetas (sin las de página), más recientes primero. */
   folders: FolderInfo[];
-  /** Las mismas en orden de árbol (cada padre seguido de sus hijas), para listas con sangría. */
+  /** Las mismas en orden de árbol (cada padre seguido de sus hijas y de sus páginas), para listas con sangría. */
   tree: FolderInfo[];
   byKey: Map<string, FolderInfo>;
   looseIds: Set<string>;
@@ -68,12 +74,45 @@ export function BookmarksProvider({ children }: { children: ReactNode }) {
       depth: f.depth,
       ids: new Set(f.items.map((b) => b.id)),
       ownIds: new Set(f.own.map((b) => b.id)),
+      directIds: new Set(f.rest.map((b) => b.id)),
+      childKeys: [],
       count: f.items.length,
       ownCount: f.own.length,
       latest: f.latest,
       pages: f.subfolders.length,
     }));
     const byKey = new Map(folders.map((f) => [f.key, f]));
+    for (const g of groups) byKey.get(g.key)!.childKeys.push(...g.children.map((c) => c.key));
+    // «carpetas de página»: cada página con varias notas es una subcarpeta de su carpeta, como en el popup.
+    // Solo viven en `tree` y `byKey` (para pintarlas y filtrar); no cuentan como carpetas, ni se renombran ni se borran.
+    const pagesOf = new Map<string, FolderInfo[]>();
+    for (const g of groups) {
+      if (!g.subfolders.length) continue;
+      const list: FolderInfo[] = g.subfolders.map((s) => {
+        const ids = new Set(s.items.map((b) => b.id));
+        const name = s.title ?? s.label;
+        return {
+          key: `page:${g.key}|${s.key}`,
+          label: name,
+          name,
+          custom: false,
+          parent: g.key,
+          depth: g.depth + 1,
+          ids,
+          ownIds: ids,
+          directIds: ids,
+          childKeys: [],
+          count: ids.size,
+          ownCount: ids.size,
+          latest: s.latest,
+          pages: 0,
+          page: true,
+        };
+      });
+      pagesOf.set(g.key, list);
+      byKey.get(g.key)!.childKeys.push(...list.map((x) => x.key));
+      for (const pf of list) byKey.set(pf.key, pf);
+    }
     // orden de árbol: raíces por reciente; bajo cada una sus hijas (los grupos `groups` ya traen children ordenados)
     const groupByKey = new Map(groups.map((g) => [g.key, g]));
     const tree: FolderInfo[] = [];
@@ -82,6 +121,7 @@ export function BookmarksProvider({ children }: { children: ReactNode }) {
       if (!info) return;
       tree.push(info);
       for (const c of groupByKey.get(key)?.children ?? []) walk(c.key);
+      for (const pf of pagesOf.get(key) ?? []) tree.push(pf);
     };
     for (const f of folders) if (!f.parent) walk(f.key);
     // cada nota se asocia a SU carpeta (la más específica), no a las que la contienen

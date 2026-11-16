@@ -19,6 +19,13 @@ export const DEFAULT_FILTERS: Filters = { query: '', folder: null, withSub: true
 
 const DAYS: Record<RangeKey, number> = { all: 0, '7d': 7, '30d': 30, '90d': 90 };
 
+/**
+ * «Modo explorador» (como los marcadores de Chrome): con una carpeta elegida y sin búsqueda ni otros filtros,
+ * se ve su contenido directo (subcarpetas como filas + sus propias notas) en vez de todas las notas aplanadas.
+ */
+export const isBrowsing = (f: Filters): boolean =>
+  !!f.folder && f.folder !== '__loose__' && !f.query.trim() && !f.onlyImages && f.range === 'all';
+
 export function activeFilterCount(f: Filters): number {
   return (f.query.trim() ? 1 : 0) + (f.folder ? 1 : 0) + (f.onlyImages ? 1 : 0) + (f.range !== 'all' ? 1 : 0);
 }

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Bookmark } from '@/utils/bookmarks';
 import { PAGE_SIZE } from '../../lib/constants';
-import { useBookmarks } from '../../store/bookmarks';
 import { useSelection } from '../../store/selection';
+import { fmtDate, plural } from '../../lib/format';
+import { useBookmarks, type FolderInfo } from '../../store/bookmarks';
 import { Button } from '../ui/Button';
 import { NoteCard } from './NoteCard';
 import { NoteRow } from './NoteRow';
@@ -15,6 +16,9 @@ interface Props {
   onOpen: (id: string) => void;
   /** Abre el visor de imágenes directamente (sin pasar por el panel de detalle). */
   onView: (id: string, n?: number) => void;
+  /** Subcarpetas del contenido actual, mostradas como filas/tarjetas de carpeta (modo explorador). */
+  folderRows?: FolderInfo[];
+  onEnter?: (key: string) => void;
   /** Cambia cuando cambian los filtros: vuelve a la primera tanda. */
   resetKey: string;
 }
@@ -22,7 +26,7 @@ interface Props {
 // mantener en sync con las celdas de NoteRow
 const COLS = '36px 64px minmax(0,1fr) 170px 150px 84px';
 
-export function NotesList({ items, view, onOpen, onView, resetKey }: Props) {
+export function NotesList({ items, view, onOpen, onView, folderRows = [], onEnter, resetKey }: Props) {
   const { folderOf } = useBookmarks();
   const sel = useSelection();
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -57,6 +61,17 @@ export function NotesList({ items, view, onOpen, onView, resetKey }: Props) {
     return (
       <>
         <div className="grid">
+          {folderRows.map((f) => (
+            <div key={f.key} className="card folder-card" onClick={() => onEnter?.(f.key)} title={f.label}>
+              <div className="folder-card-icon">{f.page ? '📄' : '📁'}</div>
+              <div className="card-body">
+                <div className="note-title">{f.name}</div>
+                <div className="muted small">
+                  {plural(f.count, 'nota', 'notas')} · {fmtDate(f.latest)}
+                </div>
+              </div>
+            </div>
+          ))}
           {shown.map((n, i) => (
             <NoteCard key={n.id} note={n} index={i} selected={sel.has(n.id)} folder={folderOf.get(n.id)} onToggle={onToggle} onOpen={onOpen} onView={onView} />
           ))}
@@ -85,6 +100,23 @@ export function NotesList({ items, view, onOpen, onView, resetKey }: Props) {
           <div className="tcell">Fecha</div>
           <div className="tcell" />
         </div>
+        {folderRows.map((f) => (
+          <div key={f.key} className="trow folder-row-item" onClick={() => onEnter?.(f.key)} title={f.label}>
+            <div className="tcell" />
+            <div className="tcell">
+              <div className="thumb thumb-fallback">{f.page ? '📄' : '📁'}</div>
+            </div>
+            <div className="tcell note-main">
+              <div className="note-title">{f.name}</div>
+              <div className="muted small">{plural(f.count, 'nota', 'notas')}</div>
+            </div>
+            <div className="tcell">
+              <span className="muted">{f.page ? 'Página' : 'Carpeta'}</span>
+            </div>
+            <div className="tcell muted small">{fmtDate(f.latest)}</div>
+            <div className="tcell" />
+          </div>
+        ))}
         {shown.map((n, i) => (
           <NoteRow key={n.id} note={n} index={i} selected={sel.has(n.id)} folder={folderOf.get(n.id)} onToggle={onToggle} onOpen={onOpen} onView={onView} />
         ))}

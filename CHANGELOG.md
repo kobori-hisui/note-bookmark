@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2] - 2026-11-16
+
+### Agregado (panel)
+- **Carpetas de página en el panel**, igual que en el popup: una página con 2 o más notas aparece como subcarpeta 📄 dentro de su carpeta (p. ej. `blonde-beatiful › biography › College Girl Wins a Lewd Chicken Dinner`), en el sidebar, en el selector de carpeta y en Carpetas. Al elegirla se filtran solo las notas de esa página. Son calculadas (no se guardan): no se renombran ni se quitan.
+- **Modo explorador (como los marcadores de Chrome).** Al elegir una carpeta ya no se aplanan las notas de sus subcarpetas: se ven las subcarpetas y páginas como filas 📁/📄 (clic para entrar) y debajo solo las notas que están directamente en ella. Arriba hay una ruta clicable («Todas › blonde-beatiful › biography»). Con búsqueda, rango de fechas o «Con imágenes» vuelve la lista plana de antes (con «Incluir subcarpetas»).
+- **Visor de imágenes sobre todas las notas** (←→ imágenes, ↑↓ notas) con popup «Ver nota»; un clic en la miniatura lo abre directo.
+
+### Archivos modificados
+`dashboard/store/bookmarks.tsx`, `dashboard/components/layout/Sidebar.tsx`, `dashboard/components/notes/{NotesToolbar,Lightbox,NoteThumb,NoteRow,NoteCard,NotesList,NoteDrawer}.tsx`, `dashboard/pages/{FoldersPage,NotesPage}.tsx`, `dashboard/lib/gallery.ts`, `dashboard/style.css`
+
 ## [0.3.1] - 2026-11-16
 
 ### Agregado (subcarpetas manuales)

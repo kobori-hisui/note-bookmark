@@ -1,5 +1,5 @@
 import { LOOSE } from '../../lib/constants';
-import { activeFilterCount, type RangeKey, type SortKey } from '../../lib/search';
+import { activeFilterCount, isBrowsing, type RangeKey, type SortKey } from '../../lib/search';
 import { useBookmarks } from '../../store/bookmarks';
 import { useFilters } from '../../store/filters';
 import { Button, Select, Segmented } from '../ui';
@@ -24,12 +24,12 @@ export function NotesToolbar({ view, onView }: { view: NotesView; onView: (v: No
         {tree.map((f) => (
           <option key={f.key} value={f.key}>
             {'\u00A0\u00A0'.repeat(f.depth)}
-            {f.custom ? '🗂️' : '📁'} {f.name} ({f.count})
+            {f.page ? '📄' : f.custom ? '🗂️' : '📁'} {f.name} ({f.count})
           </option>
         ))}
       </Select>
 
-      {hasChildren && (
+      {hasChildren && !isBrowsing(filters) && (
         <label className="toggle" title="Mostrar también las notas de las carpetas dentro de ésta">
           <input
             type="checkbox"

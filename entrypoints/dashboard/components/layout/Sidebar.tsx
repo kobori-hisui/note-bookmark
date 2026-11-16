@@ -8,7 +8,7 @@ import { useBookmarks } from '../../store/bookmarks';
 import { useFilters } from '../../store/filters';
 import { Icon } from '../ui';
 
-const MAX_FOLDERS = 10;
+const MAX_FOLDERS = 16;
 
 export function Sidebar({ current }: { current: string }) {
   const { items, folders, tree, byKey, looseIds } = useBookmarks();
@@ -89,7 +89,7 @@ export function Sidebar({ current }: { current: string }) {
               title={f.label}
             >
               <span className="nav-label">
-                {f.custom ? '🗂️' : '📁'} {f.name}
+                {f.page ? '📄' : f.custom ? '🗂️' : '📁'} {f.name}
               </span>
               <span className="nav-count">{f.count}</span>
             </button>

@@ -91,17 +91,17 @@ export function FoldersPage() {
           {tree.map((f) => (
             <div key={f.key} className="trow" onClick={() => view(f)}>
               <div className="tcell note-title" style={{ paddingLeft: f.depth * 20 }} title={f.label}>
-                {f.custom ? '🗂️' : '📁'} {f.name}
+                {f.page ? '📄' : f.custom ? '🗂️' : '📁'} {f.name}
                 {f.count !== f.ownCount && <span className="muted"> · {f.ownCount} propias</span>}
                 {f.pages > 0 && <span className="muted"> · {plural(f.pages, 'página', 'páginas')}</span>}
               </div>
               <div className="tcell">
-                <Badge tone={f.custom ? 'accent' : 'neutral'}>{f.custom ? 'Manual' : 'Automática'}</Badge>
+                <Badge tone={f.custom ? 'accent' : 'neutral'}>{f.page ? 'Página' : f.custom ? 'Manual' : 'Automática'}</Badge>
               </div>
               <div className="tcell">{f.count}</div>
               <div className="tcell muted small">{fmtDate(f.latest)}</div>
               <div className="tcell tcell-actions" onClick={(e) => e.stopPropagation()}>
-                <IconButton icon="edit" label="Renombrar o fusionar" onClick={() => setRenaming(f)} />
+                {!f.page && <IconButton icon="edit" label="Renombrar o fusionar" onClick={() => setRenaming(f)} />}
                 {f.custom && <IconButton icon="trash" label="Quitar carpeta" danger onClick={() => remove(f)} />}
               </div>
             </div>
