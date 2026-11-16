@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { hostOf, titleOf } from '../../lib/format';
+import { fmtDateTime, hostOf, titleOf } from '../../lib/format';
 import type { Slide } from '../../lib/gallery';
 import { useBookmarks } from '../../store/bookmarks';
+import { Badge } from '../ui/Badge';
 import { Button, IconButton } from '../ui/Button';
 
 interface Props {
@@ -17,8 +18,10 @@ interface Props {
  * ← → imagen anterior/siguiente · ↑ ↓ nota anterior/siguiente · Esc o clic fuera cierran.
  */
 export function Lightbox({ slides, start = 0, onClose, onOpenNote }: Props) {
-  const { byId } = useBookmarks();
+  const { byId, folderOf } = useBookmarks();
   const [i, setI] = useState(start);
+  const [showNote, setShowNote] = useState(false);
+  const closeNote = useCallback(() => setShowNote(false), []);
   const total = slides.length;
   const cur = slides[i];
 
@@ -47,7 +50,8 @@ export function Lightbox({ slides, start = 0, onClose, onOpenNote }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation(); // que no cierre también el panel de detalle
-        onClose();
+        if (showNote) closeNote(); // primero el popup de la nota, luego el visor
+        else onClose();
       } else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowRight') step(1);
       else if (e.key === 'ArrowUp') {
@@ -61,7 +65,7 @@ export function Lightbox({ slides, start = 0, onClose, onOpenNote }: Props) {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [step, stepNote, onClose]);
+  }, [step, stepNote, onClose, showNote, closeNote]);
 
   if (!cur) return null;
   const note = byId.get(cur.noteId);
@@ -89,12 +93,31 @@ export function Lightbox({ slides, start = 0, onClose, onOpenNote }: Props) {
           {i + 1} / {total}
           {total > 1 && ' · ↑ ↓ cambian de nota'}
         </div>
-        {onOpenNote && (
-          <Button size="sm" icon="external" onClick={() => onOpenNote(cur.noteId)}>
-            Ver nota
-          </Button>
-        )}
+        <Button size="sm" icon="external" onClick={() => setShowNote((v) => !v)}>
+          {showNote ? 'Ocultar nota' : 'Ver nota'}
+        </Button>
       </div>
+      {showNote && note && (
+        <div className="lb-note" role="dialog" aria-label="Contenido de la nota">
+          <div className="lb-note-head">
+            <span className="small muted">{fmtDateTime(note.date)}</span>
+            {folderOf.get(note.id) && <Badge tone="accent">{folderOf.get(note.id)}</Badge>}
+            <span className="spacer" />
+            <IconButton icon="x" label="Cerrar nota" onClick={closeNote} />
+          </div>
+          <div className="lb-note-body">
+            {note.quote && <blockquote className="drawer-quote">{note.quote}</blockquote>}
+            {note.note ? <p className="lb-note-text">{note.note}</p> : <p className="muted small">Esta nota no tiene texto.</p>}
+          </div>
+          {onOpenNote && (
+            <div className="lb-note-foot">
+              <Button size="sm" variant="primary" onClick={() => onOpenNote(cur.noteId)}>
+                Editar nota
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
       <IconButton className="lb lb-close" icon="x" label="Cerrar (Esc)" onClick={onClose} />
     </div>
   );

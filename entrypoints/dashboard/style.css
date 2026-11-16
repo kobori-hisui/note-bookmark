@@ -190,3 +190,13 @@ kbd { font: 11px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px; 
 .lb-cap-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .lightbox > img { max-height: 84vh; }
 .thumb-clickable { cursor: zoom-in; }
+
+/* Popup con el contenido de la nota dentro del visor; la imagen ya no queda tapada por la leyenda */
+.lightbox { box-sizing: border-box; padding-bottom: 96px; }
+.lightbox > img { max-height: calc(100vh - 120px); }
+.lb-note { position: absolute; right: 16px; bottom: 96px; width: min(380px, calc(100vw - 32px)); max-height: 55vh; display: flex; flex-direction: column; border-radius: 12px; background: var(--panel, #1c1c20); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5); z-index: 2; }
+.lb-note-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.lb-note-head .spacer { flex: 1; }
+.lb-note-body { padding: 10px 14px; overflow-y: auto; }
+.lb-note-text { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.5; user-select: text; }
+.lb-note-foot { padding: 8px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; }
