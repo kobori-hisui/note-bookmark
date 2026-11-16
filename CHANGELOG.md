@@ -8,7 +8,7 @@
 - **Una carpeta incluye las notas de sus hijas** (`notes-init` = sus notas + las de `case-use`). El panel muestra «N propias» y la barra de filtros tiene «Incluir subcarpetas» para ver solo las directas.
 - **Autocompletado de rutas** en el cuadro de nota (`/notes-init/` sugiere sus hijas), en el selector (`Tab`) y en el panel; sin coincidencias se ofrece «Crear».
 - **Panel › Carpetas:** vista de árbol con sangría. Renombrar o mover una carpeta arrastra todas sus hijas (`proyectos/tesis` la mueve dentro de `proyectos`) y la carpeta activa sigue el cambio. Quitar una carpeta quita también sus subcarpetas (las notas no se borran). Todo con Deshacer.
-- **Popup y sidebar:** las carpetas hijas se pintan dentro de su padre (en el sidebar con sangría y solo su último nivel).
+- **Popup y sidebar:** las carpetas hijas se pintan dentro de su padre (en el sidebar con sangría y solo su último nivel). En el sidebar cada carpeta con hijas tiene una flecha ▾/▸ para plegarla o desplegarla; se recuerda entre sesiones.
 
 ### Limitaciones conocidas
 - Una nota que empiece con una ruta (`/usr/bin ...`) ahora se interpreta como comando de carpeta. Para escribirla tal cual, antepón un espacio o un carácter.
@@ -16,7 +16,7 @@
 - Las estadísticas cuentan solo notas propias de cada carpeta, para que un padre no repita las de sus hijas.
 
 ### Archivos modificados
-`utils/folders.ts` (árbol, `cleanFolderPath`, `rebasePath`), `utils/bookmarks.ts`, `utils/backup.ts`, `entrypoints/content/index.ts`, `entrypoints/popup/main.ts`, `dashboard/store/bookmarks.tsx`, `dashboard/lib/{actions,search,stats,backupIO}.ts`, `dashboard/pages/{FoldersPage,NotesPage}.tsx`, `dashboard/components/layout/Sidebar.tsx`, `dashboard/components/notes/{FolderPicker,NoteDrawer,NotesToolbar}.tsx`, `dashboard/components/ui/PromptModal.tsx`, `README.md`, `package.json`
+`utils/folders.ts` (árbol, `cleanFolderPath`, `rebasePath`), `utils/bookmarks.ts`, `utils/backup.ts`, `entrypoints/content/index.ts`, `entrypoints/popup/main.ts`, `dashboard/store/bookmarks.tsx`, `dashboard/lib/{actions,search,stats,backupIO}.ts`, `dashboard/pages/{FoldersPage,NotesPage}.tsx`, `dashboard/components/layout/Sidebar.tsx`, `dashboard/style.css`, `dashboard/components/notes/{FolderPicker,NoteDrawer,NotesToolbar}.tsx`, `dashboard/components/ui/PromptModal.tsx`, `README.md`, `package.json`
 
 ## [0.3.0] - 2026-11-12
 
