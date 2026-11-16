@@ -4,6 +4,7 @@ import { blobToJpegDataUrl } from '@/utils/image';
 import { settingsItem, updateSettings, type ImageMode } from '@/utils/settings';
 import { fragmentFromSegments, normalizeQuote } from '@/utils/quote';
 import { openEditor } from './editor';
+import { initInlineInsert } from './inline-insert';
 import { findImages, locateNote } from './locate';
 import { cropImage, selectRegion } from './selector';
 
@@ -149,6 +150,8 @@ function pageMeta(): { title: string | null; favicon: string | null } {
 export default defineContentScript({
   matches: ['<all_urls>'],
   main() {
+    initInlineInsert(); // "/carpeta" en cualquier campo de texto de la página
+
     // El host cubre toda la pantalla: da el fondo oscurecido + centra la barra
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:none;';

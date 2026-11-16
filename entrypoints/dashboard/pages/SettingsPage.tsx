@@ -97,6 +97,25 @@ export function SettingsPage() {
       </section>
 
       <section className="panel">
+        <h2 className="panel-title">Insertar notas en cualquier sitio</h2>
+        <label className="option">
+          <input
+            type="checkbox"
+            checked={settings?.inlineInsert !== false}
+            onChange={(e) => update({ inlineInsert: e.target.checked })}
+          />
+          <span>
+            <b>Comando «/carpeta» en campos de texto</b>
+            <br />
+            <small className="muted">
+              Al escribir <code>/mi-carpeta/sub</code> en un campo de texto aparece la lista de notas de esa carpeta: Enter inserta el
+              texto y los botones 🖼 copian las imágenes al portapapeles. Solo se abre si lo escrito coincide con una carpeta tuya.
+            </small>
+          </span>
+        </label>
+      </section>
+
+      <section className="panel">
         <h2 className="panel-title">Carpeta activa</h2>
         <p className="muted">Las notas nuevas se guardan en esta carpeta manual (se cambia con Tab o «/nombre» al escribir una nota).</p>
         <div className="row">

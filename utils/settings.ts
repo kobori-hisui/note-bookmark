@@ -10,6 +10,8 @@ export interface Settings {
   imageMode: ImageMode;
   /** Carpeta manual donde se guardan las notas nuevas (null = automática). Se conserva entre notas y pestañas. */
   activeFolder?: string | null;
+  /** Escribir «/carpeta» en cualquier campo de texto abre la lista de notas de esa carpeta (por defecto sí). */
+  inlineInsert?: boolean;
 }
 
 export const settingsItem = storage.defineItem<Settings>('local:settings', {

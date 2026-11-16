@@ -10,13 +10,22 @@
 - **Panel › Carpetas:** vista de árbol con sangría. Renombrar o mover una carpeta arrastra todas sus hijas (`proyectos/tesis` la mueve dentro de `proyectos`) y la carpeta activa sigue el cambio. Quitar una carpeta quita también sus subcarpetas (las notas no se borran). Todo con Deshacer.
 - **Popup y sidebar:** las carpetas hijas se pintan dentro de su padre (en el sidebar con sangría y solo su último nivel). En el sidebar cada carpeta con hijas tiene una flecha ▾/▸ para plegarla o desplegarla; se recuerda entre sesiones.
 
+### Agregado (insertar notas en cualquier sitio)
+- **Comando `/carpeta` en cualquier campo de texto** (textarea, input y editores `contenteditable`). Al escribir `/blonde-beatiful/biography` aparece una lista con las notas de esa carpeta: `Enter` inserta el texto en el lugar del comando, `Alt+Enter` inserta la cita en vez de la nota, y los botones 🖼 (o `Shift+Enter`) copian la imagen al portapapeles como PNG para pegarla con `Ctrl+V`. Una nota que solo tiene imágenes copia la primera.
+- **Rutas parciales:** `/biog` sugiere carpetas (coincide por el inicio de la ruta o de su último nivel); `Tab`/`Enter` completan y abren la lista de notas. Con una carpeta con hijas, las hijas salen primero para bajar un nivel.
+- **No estorba a la página:** el menú solo se abre si el `/` va al inicio o tras un espacio, hay al menos 2 caracteres y lo escrito coincide con una carpeta tuya. Ignora campos de contraseña, de solo lectura y el Shadow DOM de otros. Mientras está abierto captura ↑ ↓ Enter Tab Esc (así Enter no envía el mensaje del chat); cualquier otra tecla sigue al campo.
+- **Ajustes › Insertar notas en cualquier sitio:** para apagarlo.
+- Archivo nuevo: `entrypoints/content/inline-insert.ts`. Las notas se leen del storage solo la primera vez que se abre el menú y se sueltan de memoria a los 60 s.
+
 ### Limitaciones conocidas
+- El menú del `/carpeta` en campos de texto se ancla al campo (en input/textarea el navegador no da la posición del cursor); en `contenteditable` sale junto al cursor. No funciona dentro de iframes ni de Shadow DOM de la página.
+- Algunos editores ignoran `execCommand('insertText')`; en ese caso se usa un respaldo que inserta el nodo de texto.
 - Una nota que empiece con una ruta (`/usr/bin ...`) ahora se interpreta como comando de carpeta. Para escribirla tal cual, antepón un espacio o un carácter.
 - Las carpetas manuales que ya tuvieran una `/` en el nombre (creadas con comillas) pasan a ser anidadas.
 - Las estadísticas cuentan solo notas propias de cada carpeta, para que un padre no repita las de sus hijas.
 
 ### Archivos modificados
-`utils/folders.ts` (árbol, `cleanFolderPath`, `rebasePath`), `utils/bookmarks.ts`, `utils/backup.ts`, `entrypoints/content/index.ts`, `entrypoints/popup/main.ts`, `dashboard/store/bookmarks.tsx`, `dashboard/lib/{actions,search,stats,backupIO}.ts`, `dashboard/pages/{FoldersPage,NotesPage}.tsx`, `dashboard/components/layout/Sidebar.tsx`, `dashboard/style.css`, `dashboard/components/notes/{FolderPicker,NoteDrawer,NotesToolbar}.tsx`, `dashboard/components/ui/PromptModal.tsx`, `README.md`, `package.json`
+`utils/folders.ts` (árbol, `cleanFolderPath`, `rebasePath`), `utils/bookmarks.ts`, `utils/backup.ts`, `entrypoints/content/index.ts`, `entrypoints/popup/main.ts`, `dashboard/store/bookmarks.tsx`, `dashboard/lib/{actions,search,stats,backupIO}.ts`, `dashboard/pages/{FoldersPage,NotesPage}.tsx`, `dashboard/components/layout/Sidebar.tsx`, `dashboard/style.css`, `dashboard/pages/SettingsPage.tsx`, `utils/settings.ts`, `dashboard/components/notes/{FolderPicker,NoteDrawer,NotesToolbar}.tsx`, `dashboard/components/ui/PromptModal.tsx`, `README.md`, `package.json`
 
 ## [0.3.0] - 2026-11-12
 

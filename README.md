@@ -13,6 +13,7 @@ Extensión de Chrome (WXT + React + TypeScript) para guardar notas por sitio, co
 | `/carpeta texto` | Guardar esa nota en «carpeta» (con sugerencias al escribir) |
 | `/"mi tesis" texto` | Carpeta con espacios |
 | `/notes-init/case-use texto` | Subcarpeta (hasta 5 niveles con `/`) |
+| `/carpeta/sub` en **cualquier campo de texto** | Lista las notas de esa carpeta: `Enter` inserta el texto, `Alt+Enter` la cita, 🖼 / `Shift+Enter` copia la imagen |
 
 El popup es el acceso rápido; el **panel** (`/dashboard.html`) es para administrar todo.
 
@@ -21,7 +22,8 @@ El popup es el acceso rápido; el **panel** (`/dashboard.html`) es para administ
 ```
 entrypoints/
   background.ts        menú contextual, atajos, captura, descarga de imágenes
-  content/             cuadro de nota, editor de capturas, ubicar la nota en la página
+  content/             cuadro de nota, editor de capturas, ubicar la nota en la página,
+                       inline-insert (comando /carpeta en cualquier campo de texto)
   popup/               historial rápido
   dashboard/           panel de administración (React)
     pages/             una página por sección (Notas, Carpetas, Estadísticas, Datos, Ajustes)
