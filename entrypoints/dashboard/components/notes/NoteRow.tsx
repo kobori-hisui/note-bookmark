@@ -15,12 +15,13 @@ interface Props {
   folder?: string;
   onToggle: (id: string, index: number, shift: boolean) => void;
   onOpen: (id: string) => void;
+  onView: (id: string, n?: number) => void;
 }
 
 const stop = (e: MouseEvent) => e.stopPropagation();
 
 /** Fila de la tabla de notas. Columnas definidas por --cols en NotesList (mantener en sync con el encabezado). */
-export const NoteRow = memo(function NoteRow({ note, index, selected, folder, onToggle, onOpen }: Props) {
+export const NoteRow = memo(function NoteRow({ note, index, selected, folder, onToggle, onOpen, onView }: Props) {
   const actions = useActions();
   const imgs = imageCount(note);
 
@@ -40,7 +41,7 @@ export const NoteRow = memo(function NoteRow({ note, index, selected, folder, on
         />
       </div>
       <div className="tcell">
-        <NoteThumb note={note} />
+        <NoteThumb note={note} onView={onView} />
       </div>
       <div className="tcell note-main">
         <div className="note-title">

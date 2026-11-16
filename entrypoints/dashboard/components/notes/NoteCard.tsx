@@ -12,14 +12,15 @@ interface Props {
   folder?: string;
   onToggle: (id: string, index: number, shift: boolean) => void;
   onOpen: (id: string) => void;
+  onView: (id: string, n?: number) => void;
 }
 
 /** Tarjeta de la vista en cuadrícula (ideal para notas con capturas e imágenes). */
-export const NoteCard = memo(function NoteCard({ note, index, selected, folder, onToggle, onOpen }: Props) {
+export const NoteCard = memo(function NoteCard({ note, index, selected, folder, onToggle, onOpen, onView }: Props) {
   return (
     <div className={cx('card', selected && 'is-selected')} onClick={() => onOpen(note.id)}>
       <div className="card-thumb">
-        <NoteThumb note={note} className="card-img" />
+        <NoteThumb note={note} className="card-img" onView={onView} />
         <input
           type="checkbox"
           className="check card-check"

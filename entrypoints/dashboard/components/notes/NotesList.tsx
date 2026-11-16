@@ -13,6 +13,8 @@ interface Props {
   items: Bookmark[];
   view: NotesView;
   onOpen: (id: string) => void;
+  /** Abre el visor de imágenes directamente (sin pasar por el panel de detalle). */
+  onView: (id: string, n?: number) => void;
   /** Cambia cuando cambian los filtros: vuelve a la primera tanda. */
   resetKey: string;
 }
@@ -20,7 +22,7 @@ interface Props {
 // mantener en sync con las celdas de NoteRow
 const COLS = '36px 64px minmax(0,1fr) 170px 150px 84px';
 
-export function NotesList({ items, view, onOpen, resetKey }: Props) {
+export function NotesList({ items, view, onOpen, onView, resetKey }: Props) {
   const { folderOf } = useBookmarks();
   const sel = useSelection();
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -56,7 +58,7 @@ export function NotesList({ items, view, onOpen, resetKey }: Props) {
       <>
         <div className="grid">
           {shown.map((n, i) => (
-            <NoteCard key={n.id} note={n} index={i} selected={sel.has(n.id)} folder={folderOf.get(n.id)} onToggle={onToggle} onOpen={onOpen} />
+            <NoteCard key={n.id} note={n} index={i} selected={sel.has(n.id)} folder={folderOf.get(n.id)} onToggle={onToggle} onOpen={onOpen} onView={onView} />
           ))}
         </div>
         {more}
@@ -84,7 +86,7 @@ export function NotesList({ items, view, onOpen, resetKey }: Props) {
           <div className="tcell" />
         </div>
         {shown.map((n, i) => (
-          <NoteRow key={n.id} note={n} index={i} selected={sel.has(n.id)} folder={folderOf.get(n.id)} onToggle={onToggle} onOpen={onOpen} />
+          <NoteRow key={n.id} note={n} index={i} selected={sel.has(n.id)} folder={folderOf.get(n.id)} onToggle={onToggle} onOpen={onOpen} onView={onView} />
         ))}
       </div>
       {more}

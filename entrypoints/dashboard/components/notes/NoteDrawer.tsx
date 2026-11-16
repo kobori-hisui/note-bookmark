@@ -8,11 +8,10 @@ import { useActions } from '../../lib/useActions';
 import { useBookmarks } from '../../store/bookmarks';
 import { useToast } from '../../store/toast';
 import { Button, Field, Input, Modal, Textarea } from '../ui';
-import { Lightbox } from './Lightbox';
 import { SafeImg } from './SafeImg';
 
 /** Panel lateral con el detalle de una nota: imágenes, cita y formulario de edición. Usar con key={note.id}. */
-export function NoteDrawer({ note, onClose }: { note: Bookmark; onClose: () => void }) {
+export function NoteDrawer({ note, onClose, onView }: { note: Bookmark; onClose: () => void; onView: (id: string, n?: number) => void }) {
   const { manualNames } = useBookmarks();
   const actions = useActions();
   const toast = useToast();
@@ -23,7 +22,6 @@ export function NoteDrawer({ note, onClose }: { note: Bookmark; onClose: () => v
   const [url, setUrl] = useState(note.url);
   const [folder, setFolder] = useState(note.folder ?? '');
   const [err, setErr] = useState('');
-  const [view, setView] = useState<{ srcs: string[]; i: number } | null>(null);
 
   const dirty =
     title !== (note.title ?? '') || text !== note.note || url !== note.url || folder !== (note.folder ?? '');
@@ -69,12 +67,12 @@ export function NoteDrawer({ note, onClose }: { note: Bookmark; onClose: () => v
         <p className="muted small">{fmtDateTime(note.date)}</p>
 
         {note.image && (
-          <SafeImg src={note.image} className="drawer-main-img" onClick={() => setView({ srcs: [note.image!], i: 0 })} />
+          <SafeImg src={note.image} className="drawer-main-img" onClick={() => onView(note.id, 0)} />
         )}
         {gallery.length > 0 && (
           <div className="drawer-gallery">
             {gallery.map((src, i) => (
-              <SafeImg key={i} src={src} onClick={() => setView({ srcs: gallery, i })} />
+              <SafeImg key={i} src={src} onClick={() => onView(note.id, (note.image ? 1 : 0) + i)} />
             ))}
           </div>
         )}
@@ -101,7 +99,6 @@ export function NoteDrawer({ note, onClose }: { note: Bookmark; onClose: () => v
           {err && <div className="err-text">{err}</div>}
         </div>
       </Modal>
-      {view && <Lightbox srcs={view.srcs} start={view.i} onClose={() => setView(null)} />}
     </>
   );
 }
