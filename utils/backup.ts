@@ -1,4 +1,5 @@
 import type { Bookmark } from './bookmarks';
+import { cleanFolderPath } from './folders';
 
 // lo que produce encodeURIComponent (+ la coma que separa inicio,fin del fragmento)
 const FRAGMENT_OK = /^[A-Za-z0-9_.!~*'()%,]{1,2000}$/;
@@ -57,7 +58,7 @@ export function normalizeBookmark(x: unknown): Bookmark | null {
     fragment: typeof o.fragment === 'string' && FRAGMENT_OK.test(o.fragment) ? o.fragment : null,
     imageSrcs: images.length ? imageSrcs : null,
     anchor,
-    folder: typeof o.folder === 'string' && o.folder.trim() ? o.folder.trim().slice(0, 60) : null,
+    folder: typeof o.folder === 'string' ? cleanFolderPath(o.folder) : null,
   };
 }
 

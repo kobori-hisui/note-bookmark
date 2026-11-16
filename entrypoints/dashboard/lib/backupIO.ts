@@ -20,7 +20,7 @@ export function exportJsonFile(items: Bookmark[], prefix = 'note-bookmarks') {
 export async function exportDbFile(items: Bookmark[]) {
   const SQL = await loadSqlJs();
   const folderById = new Map<string, string>();
-  for (const f of groupBookmarks(items).folders) for (const b of f.items) folderById.set(b.id, f.label ?? f.key);
+  for (const f of groupBookmarks(items).folders) for (const b of f.own) folderById.set(b.id, f.label ?? f.key);
   const bytes = buildDb(SQL, items, folderById);
   download(new Blob([bytes as BlobPart], { type: 'application/vnd.sqlite3' }), `note-bookmarks-${today()}.db`);
 }

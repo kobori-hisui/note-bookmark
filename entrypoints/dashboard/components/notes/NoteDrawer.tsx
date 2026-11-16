@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { isSafeUrl } from '@/utils/backup';
 import { updateBookmark, type Bookmark } from '@/utils/bookmarks';
+import { cleanFolderPath, MAX_FOLDER_PATH } from '@/utils/folders';
 import { openNoteInPage } from '../../lib/actions';
 import { fmtDateTime, titleOf } from '../../lib/format';
 import { useActions } from '../../lib/useActions';
@@ -38,7 +39,7 @@ export function NoteDrawer({ note, onClose }: { note: Bookmark; onClose: () => v
       note: n,
       url: u,
       title: title.trim() || null,
-      folder: folder.trim().slice(0, 60) || null,
+      folder: cleanFolderPath(folder),
     });
     toast({ text: 'Nota guardada.', kind: 'ok' });
   };
@@ -89,8 +90,8 @@ export function NoteDrawer({ note, onClose }: { note: Bookmark; onClose: () => v
           <Field label="URL" hint="Si la cambias, la nota se mueve a la carpeta automática de esa página.">
             <Input value={url} onChange={(e) => setUrl(e.target.value)} />
           </Field>
-          <Field label="Carpeta" hint="Vacío = automática por sitio.">
-            <Input value={folder} maxLength={60} list={listId} onChange={(e) => setFolder(e.target.value)} />
+          <Field label="Carpeta" hint="Vacío = automática por sitio. Usa «/» para anidar: proyecto/tesis.">
+            <Input value={folder} maxLength={MAX_FOLDER_PATH} list={listId} onChange={(e) => setFolder(e.target.value)} />
           </Field>
           <datalist id={listId}>
             {manualNames.map((n) => (

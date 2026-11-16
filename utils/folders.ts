@@ -16,6 +16,48 @@ const OTHER = 'otros';
 /** Prefijo de la clave de las carpetas elegidas a mano (las automáticas son host o host/sección). */
 export const CUSTOM_PREFIX = 'custom:';
 
+// ---- rutas de carpetas manuales: "notes-init/case-use" ----
+// La ruta completa vive en el campo `folder` de la nota (sin migración: una carpeta vieja es una ruta de 1 nivel).
+// El árbol se CALCULA al mostrar, igual que el resto de las carpetas.
+
+/** Niveles máximos de una ruta (a/b/c/d/e). */
+export const MAX_FOLDER_DEPTH = 5;
+/** Largo máximo de cada nivel. */
+export const MAX_FOLDER_SEGMENT = 60;
+/** Largo máximo de la ruta completa (para los `maxLength` de los campos de texto). */
+export const MAX_FOLDER_PATH = MAX_FOLDER_DEPTH * (MAX_FOLDER_SEGMENT + 1);
+
+/** Normaliza una ruta: recorta cada nivel, quita niveles vacíos ("a//b/" -> "a/b") y limita la profundidad. null si queda vacía. */
+export function cleanFolderPath(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const segs = s
+    .split('/')
+    .map((x) => x.trim().slice(0, MAX_FOLDER_SEGMENT).trim())
+    .filter(Boolean)
+    .slice(0, MAX_FOLDER_DEPTH);
+  return segs.length ? segs.join('/') : null;
+}
+
+export const folderDepth = (path: string) => path.split('/').length - 1;
+/** Último nivel de la ruta: "a/b/c" -> "c". */
+export const folderName = (path: string) => path.slice(path.lastIndexOf('/') + 1);
+/** Ruta del padre: "a/b/c" -> "a/b"; null si es de primer nivel. */
+export const parentPath = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : null);
+/** Clave de una carpeta manual ("Tesis/Cap1" y "tesis/cap1" son la misma). */
+export const folderKey = (path: string) => CUSTOM_PREFIX + path.toLowerCase();
+
+/**
+ * Si `path` es `from` o está dentro de `from`, devuelve la ruta con ese prefijo cambiado por `to`
+ * (sin distinguir mayúsculas). Si no, null. Sirve para renombrar / mover una carpeta con todo su contenido.
+ */
+export function rebasePath(path: string, from: string, to: string): string | null {
+  const p = path.toLowerCase();
+  const f = from.toLowerCase();
+  if (p === f) return to;
+  if (p.startsWith(f + '/')) return to + path.slice(from.length);
+  return null;
+}
+
 /** Cuántas notas de UNA misma página hacen falta para que sea subcarpeta dentro de su carpeta. */
 export const MIN_NOTES_FOR_SUBFOLDER = 2;
 
@@ -28,12 +70,16 @@ export interface SubFolder {
 }
 export interface Folder {
   key: string;
-  label?: string; // nombre de una carpeta manual (las automáticas se muestran con folderLabel)
+  label?: string; // ruta de una carpeta manual, p. ej. "notes-init/case-use" (las automáticas se muestran con folderLabel)
   custom?: boolean; // true = carpeta creada/elegida por el usuario
-  items: Bookmark[]; // TODAS las notas de la carpeta (incluye las de subcarpetas), más recientes primero
-  subfolders: SubFolder[]; // páginas con muchas notas
-  rest: Bookmark[]; // notas de la carpeta que no están en ninguna subcarpeta
-  latest: number; // timestamp de la nota más reciente
+  items: Bookmark[]; // TODAS las notas de la carpeta, incluidas las de sus carpetas hijas y páginas, más recientes primero
+  own: Bookmark[]; // solo las notas guardadas directamente en esta carpeta (sin las de las hijas)
+  parent: string | null; // clave de la carpeta padre (solo las manuales anidadas)
+  depth: number; // 0 = primer nivel
+  children: Folder[]; // carpetas hijas, más recientes primero
+  subfolders: SubFolder[]; // páginas con varias notas (calculadas sobre `own`)
+  rest: Bookmark[]; // notas propias que no están en ninguna página-subcarpeta
+  latest: number; // timestamp de la nota más reciente (incluye hijas)
 }
 export interface Grouped {
   folders: Folder[];
@@ -129,10 +175,10 @@ export function folderLabel(key: string): string {
 const time = (b: Bookmark) => Date.parse(b.date) || 0;
 const newestFirst = (a: Bookmark, b: Bookmark) => time(b) - time(a);
 
-function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
-  const arr = m.get(k);
-  if (arr) arr.push(v);
-  else m.set(k, [v]);
+function push<K, V>(m: Map<K, V[]>, k: K, ...v: V[]) {
+  let arr = m.get(k);
+  if (!arr) m.set(k, (arr = []));
+  for (const x of v) arr.push(x); // sin spread: con decenas de miles de notas reventaría los argumentos
 }
 
 // ---- subcarpetas: una página concreta (artículo) con varias notas ----
@@ -205,15 +251,15 @@ export function groupBookmarks(all: Bookmark[], min = MIN_NOTES_FOR_FOLDER): Gro
   const manual = new Map<string, { label: string; arr: Bookmark[] }>();
   const items: Bookmark[] = [];
   for (const b of [...all].sort(newestFirst)) {
-    const name = b.folder?.trim();
-    if (!name) {
+    const path = cleanFolderPath(b.folder);
+    if (!path) {
       items.push(b);
       continue;
     }
-    const key = CUSTOM_PREFIX + name.toLowerCase(); // "Tesis" y "tesis" son la misma carpeta
+    const key = folderKey(path); // "Tesis" y "tesis" son la misma carpeta
     const g = manual.get(key);
     if (g) g.arr.push(b);
-    else manual.set(key, { label: name, arr: [b] }); // el nombre lo da la nota más reciente
+    else manual.set(key, { label: path, arr: [b] }); // el nombre lo da la nota más reciente
   }
 
   const keyed = items.map((b) => ({ b, ...folderKeys(b.url) }));
@@ -242,12 +288,54 @@ export function groupBookmarks(all: Bookmark[], min = MIN_NOTES_FOR_FOLDER): Gro
   const folders: Folder[] = [...assigned.entries()].map(([key, arr]) => {
     arr.sort(newestFirst);
     const { subfolders, rest } = splitSubfolders(arr);
-    return { key, items: arr, subfolders, rest, latest: time(arr[0]) };
+    return { key, items: arr, own: arr, parent: null, depth: 0, children: [], subfolders, rest, latest: time(arr[0]) };
   });
-  for (const [key, g] of manual) {
-    const { subfolders, rest } = splitSubfolders(g.arr);
-    folders.push({ key, label: g.label, custom: true, items: g.arr, subfolders, rest, latest: time(g.arr[0]) });
+
+  // carpetas manuales como árbol: las rutas "a/b/c" crean también "a" y "a/b" aunque no tengan notas propias
+  const nodes = new Map<string, { label: string; own: Bookmark[]; parent: string | null; depth: number }>();
+  for (const [, g] of manual) {
+    const segs = g.label.split('/');
+    for (let i = 1; i <= segs.length; i++) {
+      const path = segs.slice(0, i).join('/');
+      const key = folderKey(path);
+      let n = nodes.get(key);
+      if (!n) {
+        n = { label: path, own: [], parent: i > 1 ? folderKey(segs.slice(0, i - 1).join('/')) : null, depth: i - 1 };
+        nodes.set(key, n);
+      }
+      if (i === segs.length) {
+        n.own = g.arr;
+        n.label = g.label; // con notas propias manda el nombre de la nota más reciente de ESA carpeta
+      }
+    }
   }
+  // cada carpeta acumula sus notas propias y las de todos sus descendientes
+  const total = new Map<string, Bookmark[]>();
+  for (const [key, n] of nodes) {
+    for (let k: string | null = key; k; k = nodes.get(k)?.parent ?? null) push(total, k, ...n.own);
+  }
+  const built = new Map<string, Folder>();
+  for (const [key, n] of nodes) {
+    const everything = (total.get(key) ?? []).sort(newestFirst);
+    const { subfolders, rest } = splitSubfolders(n.own);
+    const f: Folder = {
+      key,
+      label: n.label,
+      custom: true,
+      items: everything,
+      own: n.own,
+      parent: n.parent,
+      depth: n.depth,
+      children: [],
+      subfolders,
+      rest,
+      latest: time(everything[0]),
+    };
+    built.set(key, f);
+    folders.push(f);
+  }
+  for (const f of built.values()) if (f.parent) built.get(f.parent)?.children.push(f);
+  for (const f of built.values()) f.children.sort((a, b) => b.latest - a.latest);
 
   folders.sort((a, b) => b.latest - a.latest);
   loose.sort(newestFirst);

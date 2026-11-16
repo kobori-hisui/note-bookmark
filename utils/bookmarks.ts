@@ -1,5 +1,5 @@
 import { storage } from '#imports';
-import { pageId } from './folders';
+import { cleanFolderPath, pageId } from './folders';
 
 /** Dónde estaba lo guardado en la página: y = px desde arriba, h = alto total del documento (para escalar si cambia). */
 export interface Anchor {
@@ -58,7 +58,7 @@ export async function addBookmark(input: NewBookmark): Promise<Bookmark> {
     fragment: input.quote ? (input.fragment ?? null) : null,
     imageSrcs: input.images?.length ? (input.imageSrcs ?? null) : null,
     anchor: input.anchor ?? null,
-    folder: input.folder?.trim().slice(0, 60) || null,
+    folder: cleanFolderPath(input.folder),
   };
   const list = await bookmarksItem.getValue();
   await bookmarksItem.setValue([bookmark, ...list]);

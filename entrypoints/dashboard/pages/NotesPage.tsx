@@ -20,8 +20,13 @@ export function NotesPage() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const visible = useMemo(() => {
+    const sel = deferred.folder === null || deferred.folder === LOOSE ? undefined : byKey.get(deferred.folder);
     const folderIds =
-      deferred.folder === null ? null : deferred.folder === LOOSE ? looseIds : (byKey.get(deferred.folder)?.ids ?? new Set<string>());
+      deferred.folder === null
+        ? null
+        : deferred.folder === LOOSE
+          ? looseIds
+          : ((deferred.withSub ? sel?.ids : sel?.ownIds) ?? new Set<string>());
     return applyFilters(items, deferred, folderIds, folderOf);
   }, [items, deferred, byKey, looseIds, folderOf]);
 

@@ -9,7 +9,7 @@ import { Icon } from '../ui';
 const MAX_FOLDERS = 10;
 
 export function Sidebar({ current }: { current: string }) {
-  const { items, folders, looseIds } = useBookmarks();
+  const { items, folders, tree, looseIds } = useBookmarks();
   const { filters, setFilters } = useFilters();
 
   const openFolder = (key: string | null) => {
@@ -47,7 +47,7 @@ export function Sidebar({ current }: { current: string }) {
             <span className="nav-count">{looseIds.size}</span>
           </button>
         )}
-        {folders.slice(0, MAX_FOLDERS).map((f) => (
+        {tree.slice(0, MAX_FOLDERS).map((f) => (
           <button
             key={f.key}
             type="button"
@@ -55,8 +55,8 @@ export function Sidebar({ current }: { current: string }) {
             onClick={() => openFolder(f.key)}
             title={f.label}
           >
-            <span className="nav-label">
-              {f.custom ? '🗂️' : '📁'} {f.label}
+            <span className="nav-label" style={{ paddingLeft: f.depth * 16 }}>
+              {f.custom ? '🗂️' : '📁'} {f.name}
             </span>
             <span className="nav-count">{f.count}</span>
           </button>

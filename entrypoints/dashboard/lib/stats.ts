@@ -56,6 +56,10 @@ export function computeStats(items: Bookmark[], folders: FolderInfo[], days = 30
     bytes: storageStats(items).bytes,
     perDay,
     topSites: top(bySite),
-    topFolders: folders.slice().sort((a, b) => b.count - a.count).slice(0, 10).map((f) => ({ name: f.label, n: f.count })),
+    topFolders: folders
+      .filter((f) => f.ownCount > 0) // solo notas propias: así un padre no repite lo de sus hijas
+      .sort((a, b) => b.ownCount - a.ownCount)
+      .slice(0, 10)
+      .map((f) => ({ name: f.label, n: f.ownCount })),
   };
 }

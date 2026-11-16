@@ -1,5 +1,5 @@
 import { addBookmark, bookmarksItem, type Anchor } from '@/utils/bookmarks';
-import { notesForPage } from '@/utils/folders';
+import { cleanFolderPath, MAX_FOLDER_PATH, notesForPage } from '@/utils/folders';
 import { blobToJpegDataUrl } from '@/utils/image';
 import { settingsItem, updateSettings, type ImageMode } from '@/utils/settings';
 import { fragmentFromSegments, normalizeQuote } from '@/utils/quote';
@@ -54,13 +54,16 @@ async function loadImage(src: string, mode: ImageMode): Promise<string | null> {
 
 /**
  * Comando de carpeta al inicio de la nota: "/news texto" guarda ESA nota en la carpeta "news" (se crea si no existe).
- * Con espacios: /"mi tesis" texto. Solo "/news" cambia la carpeta activa. "/usr/bin" no cuenta (no hay espacio tras el nombre).
+ * Con niveles: "/notes-init/case-use texto" (cada "/" baja un nivel; hasta 5). Con espacios: /"mi tesis/cap 1" texto.
+ * Solo "/news" cambia la carpeta activa. Ojo: una nota que empiece con una ruta tipo "/usr/bin" se lee como carpeta.
  */
-const FOLDER_CMD = /^\/(?:"([^"]{1,60})"|([^\s/"]{1,60}))(?=\s|$)\s*([\s\S]*)$/;
+const FOLDER_CMD = new RegExp(`^\\/(?:"([^"]{1,${MAX_FOLDER_PATH}})"|([^\\s"]{1,${MAX_FOLDER_PATH}}))(?=\\s|$)\\s*([\\s\\S]*)$`);
 function parseFolderCmd(raw: string): { folder: string | null; note: string } {
   const m = FOLDER_CMD.exec(raw.trimStart());
   if (!m) return { folder: null, note: raw.trim() };
-  return { folder: (m[1] ?? m[2]).trim(), note: m[3].trim() };
+  const folder = cleanFolderPath(m[1] ?? m[2]);
+  if (!folder) return { folder: null, note: raw.trim() }; // "//" u otra ruta vacía: no es un comando
+  return { folder, note: m[3].trim() };
 }
 
 const httpSrc = (s: string) => (/^https?:/i.test(s) ? s : '');
@@ -532,24 +535,34 @@ export default defineContentScript({
 
     const loadFolderNames = async () => {
       const m = new Map<string, { name: string; count: number; latest: number }>();
-      for (const b of await bookmarksItem.getValue()) {
-        const n = b.folder?.trim();
-        if (!n) continue;
-        const k = n.toLowerCase();
-        const t = Date.parse(b.date) || 0;
-        const g = m.get(k);
-        if (!g) m.set(k, { name: n, count: 1, latest: t });
-        else {
-          g.count++;
-          if (t > g.latest) {
-            g.latest = t;
-            g.name = n;
+      // cada nota suma a su carpeta y a todas las de arriba ("a/b/c" cuenta en "a", "a/b" y "a/b/c")
+      const add = (path: string, t: number) => {
+        const segs = path.split('/');
+        for (let i = 1; i <= segs.length; i++) {
+          const n = segs.slice(0, i).join('/');
+          const k = n.toLowerCase();
+          const g = m.get(k);
+          if (!g) m.set(k, { name: n, count: 1, latest: t });
+          else {
+            g.count++;
+            if (t > g.latest) {
+              g.latest = t;
+              g.name = n;
+            }
           }
         }
+      };
+      for (const b of await bookmarksItem.getValue()) {
+        const n = cleanFolderPath(b.folder);
+        if (n) add(n, Date.parse(b.date) || 0);
       }
-      // carpeta recién creada que aún no tiene notas
-      if (activeFolder && !m.has(activeFolder.toLowerCase())) {
-        m.set(activeFolder.toLowerCase(), { name: activeFolder, count: 0, latest: Infinity });
+      // carpeta recién creada que aún no tiene notas (y sus niveles superiores)
+      if (activeFolder) {
+        const segs = activeFolder.split('/');
+        for (let i = 1; i <= segs.length; i++) {
+          const n = segs.slice(0, i).join('/');
+          if (!m.has(n.toLowerCase())) m.set(n.toLowerCase(), { name: n, count: 0, latest: Infinity });
+        }
       }
       folderNames = [...m.values()].sort((a, b) => b.latest - a.latest);
     };
@@ -590,9 +603,11 @@ export default defineContentScript({
       const ql = q.toLowerCase();
       fopts = folderNames
         .filter((f) => f.name.toLowerCase().includes(ql))
+        .sort((a, b) => Number(b.name.toLowerCase().startsWith(ql)) - Number(a.name.toLowerCase().startsWith(ql))) // empiezan por lo escrito primero
         .map((f) => ({ label: f.name, sub: f.count ? `${f.count} nota${f.count === 1 ? '' : 's'}` : 'nueva', value: f.name }));
-      if (q && !folderNames.some((f) => f.name.toLowerCase() === ql)) {
-        fopts.push({ label: `➕ Crear «${q.slice(0, 60)}»`, value: q.slice(0, 60) });
+      const created = cleanFolderPath(q); // "a / b" -> "a/b"
+      if (created && !folderNames.some((f) => f.name.toLowerCase() === created.toLowerCase())) {
+        fopts.push({ label: `➕ Crear «${created}»`, value: created });
       }
       if (activeFolder) fopts.push({ label: 'Sin carpeta fija (automática)', value: null });
       fsel = Math.max(0, Math.min(fsel, fopts.length - 1));
@@ -649,6 +664,7 @@ export default defineContentScript({
       const ql = m[1].toLowerCase();
       fopts = folderNames
         .filter((f) => f.name.toLowerCase().includes(ql))
+        .sort((a, b) => Number(b.name.toLowerCase().startsWith(ql)) - Number(a.name.toLowerCase().startsWith(ql))) // empiezan por lo escrito primero
         .map((f) => ({ label: f.name, sub: f.count ? `${f.count} nota${f.count === 1 ? '' : 's'}` : 'nueva', value: f.name }));
       fsel = 0;
       fInput.style.display = 'none';

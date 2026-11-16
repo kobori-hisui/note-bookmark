@@ -8,12 +8,14 @@ export interface Filters {
   query: string;
   /** Clave de carpeta (ver FolderInfo.key), LOOSE o null = todas. */
   folder: string | null;
+  /** Con una carpeta elegida: incluir también las notas de sus carpetas hijas (por defecto sí). */
+  withSub: boolean;
   onlyImages: boolean;
   range: RangeKey;
   sort: SortKey;
 }
 
-export const DEFAULT_FILTERS: Filters = { query: '', folder: null, onlyImages: false, range: 'all', sort: 'newest' };
+export const DEFAULT_FILTERS: Filters = { query: '', folder: null, withSub: true, onlyImages: false, range: 'all', sort: 'newest' };
 
 const DAYS: Record<RangeKey, number> = { all: 0, '7d': 7, '30d': 30, '90d': 90 };
 

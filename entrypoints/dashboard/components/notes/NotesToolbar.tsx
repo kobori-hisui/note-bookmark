@@ -6,9 +6,11 @@ import { Button, Select, Segmented } from '../ui';
 import type { NotesView } from './NotesList';
 
 export function NotesToolbar({ view, onView }: { view: NotesView; onView: (v: NotesView) => void }) {
-  const { folders, looseIds } = useBookmarks();
+  const { tree, byKey, looseIds } = useBookmarks();
   const { filters, setFilters, reset } = useFilters();
   const active = activeFilterCount(filters);
+  const selected = filters.folder ? byKey.get(filters.folder) : undefined;
+  const hasChildren = !!selected && selected.count !== selected.ownCount;
 
   return (
     <div className="toolbar">
@@ -19,12 +21,25 @@ export function NotesToolbar({ view, onView }: { view: NotesView; onView: (v: No
       >
         <option value="">Todas las carpetas</option>
         {looseIds.size > 0 && <option value={LOOSE}>Sin carpeta ({looseIds.size})</option>}
-        {folders.map((f) => (
+        {tree.map((f) => (
           <option key={f.key} value={f.key}>
-            {f.custom ? '🗂️' : '📁'} {f.label} ({f.count})
+            {'\u00A0\u00A0'.repeat(f.depth)}
+            {f.custom ? '🗂️' : '📁'} {f.name} ({f.count})
           </option>
         ))}
       </Select>
+
+      {hasChildren && (
+        <label className="toggle" title="Mostrar también las notas de las carpetas dentro de ésta">
+          <input
+            type="checkbox"
+            className="check"
+            checked={filters.withSub}
+            onChange={(e) => setFilters({ withSub: e.target.checked })}
+          />
+          Incluir subcarpetas
+        </label>
+      )}
 
       <Select value={filters.range} onChange={(e) => setFilters({ range: e.target.value as RangeKey })} aria-label="Fecha">
         <option value="all">Cualquier fecha</option>

@@ -12,6 +12,7 @@ Extensión de Chrome (WXT + React + TypeScript) para guardar notas por sitio, co
 | `Tab` o 📁 | Elegir o crear carpeta |
 | `/carpeta texto` | Guardar esa nota en «carpeta» (con sugerencias al escribir) |
 | `/"mi tesis" texto` | Carpeta con espacios |
+| `/notes-init/case-use texto` | Subcarpeta (hasta 5 niveles con `/`) |
 
 El popup es el acceso rápido; el **panel** (`/dashboard.html`) es para administrar todo.
 
@@ -38,6 +39,8 @@ utils/
 ```
 
 Las carpetas **no se guardan**: se calculan al mostrar. Las manuales (campo `folder` de la nota) mandan sobre las automáticas.
+
+Las manuales forman un **árbol**: el campo `folder` guarda la ruta (`notes-init/case-use`) y los niveles superiores se derivan solos. Una carpeta vieja es simplemente una ruta de un nivel, así que no hay migración.
 
 ## Panel de administración
 

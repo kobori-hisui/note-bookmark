@@ -8,6 +8,8 @@ interface Props {
   label: string;
   initial?: string;
   hint?: string;
+  /** Largo máximo del texto (60 por defecto). */
+  maxLength?: number;
   /** Nombres existentes (autocompletado nativo con datalist). */
   suggestions?: string[];
   confirmLabel?: string;
@@ -16,13 +18,13 @@ interface Props {
 }
 
 /** Diálogo de un solo campo de texto (renombrar carpeta, etc.). */
-export function PromptModal({ title, label, initial = '', hint, suggestions = [], confirmLabel = 'Guardar', onSubmit, onClose }: Props) {
+export function PromptModal({ title, label, initial = '', hint, maxLength = 60, suggestions = [], confirmLabel = 'Guardar', onSubmit, onClose }: Props) {
   const [value, setValue] = useState(initial);
   const listId = useId();
   const ok = value.trim().length > 0;
   const submit = async () => {
     if (!ok) return;
-    await onSubmit(value.trim().slice(0, 60));
+    await onSubmit(value.trim().slice(0, maxLength));
     onClose();
   };
 
@@ -44,7 +46,7 @@ export function PromptModal({ title, label, initial = '', hint, suggestions = []
         <Input
           autoFocus
           value={value}
-          maxLength={60}
+          maxLength={maxLength}
           list={listId}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {

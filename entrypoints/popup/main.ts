@@ -8,7 +8,7 @@ import {
   type Bookmark,
 } from '@/utils/bookmarks';
 import { exportJson, isSafeUrl, mergeBookmarks, parseBackup } from '@/utils/backup';
-import { folderLabel, groupBookmarks, type Folder } from '@/utils/folders';
+import { cleanFolderPath, folderLabel, folderName, groupBookmarks, MAX_FOLDER_PATH, type Folder } from '@/utils/folders';
 import { buildDb, loadSqlJs } from '@/utils/sqlite';
 import { textFragmentUrl } from '@/utils/quote';
 import { settingsItem, updateSettings, type ImageMode } from '@/utils/settings';
@@ -256,15 +256,21 @@ function renderEditCard(b: Bookmark): HTMLElement {
   // carpeta manual: escribe un nombre (o elige uno existente); vacío = carpeta automática por sitio
   const folder = document.createElement('input');
   folder.type = 'text';
-  folder.placeholder = 'Carpeta (opcional; vacío = automática)';
+  folder.placeholder = 'Carpeta (opcional; «a/b» para anidar; vacío = automática)';
   folder.value = b.folder ?? '';
+  folder.maxLength = MAX_FOLDER_PATH;
   folder.setAttribute('list', 'folder-names');
   const names = document.createElement('datalist');
   names.id = 'folder-names';
   const seen = new Set<string>();
   for (const x of all) {
-    const n = x.folder?.trim();
-    if (n && !seen.has(n.toLowerCase())) {
+    const full = cleanFolderPath(x.folder);
+    if (!full) continue;
+    // la ruta y todos sus niveles superiores ("a/b/c" ofrece "a", "a/b" y "a/b/c")
+    const segs = full.split('/');
+    for (let i = 1; i <= segs.length; i++) {
+      const n = segs.slice(0, i).join('/');
+      if (seen.has(n.toLowerCase())) continue;
       seen.add(n.toLowerCase());
       const o = document.createElement('option');
       o.value = n;
@@ -303,7 +309,7 @@ function renderEditCard(b: Bookmark): HTMLElement {
       err.hidden = false;
       return;
     }
-    await updateBookmark(b.id, { note: n, url: u, title: title.value.trim() || null, folder: folder.value.trim().slice(0, 60) || null });
+    await updateBookmark(b.id, { note: n, url: u, title: title.value.trim() || null, folder: cleanFolderPath(folder.value) });
     close();
   };
   card.addEventListener('keydown', (e) => {
@@ -356,7 +362,9 @@ function renderDetails(
 }
 
 function renderFolder(f: Folder): HTMLElement {
-  // subcarpetas (páginas con varias notas) primero, luego las notas sueltas de la carpeta
+  // carpetas hijas primero (cada una se pinta igual, recursivamente), luego las páginas con varias notas
+  // y al final las notas sueltas de la carpeta
+  const kids = f.children.map((c) => renderFolder(c));
   const subs = f.subfolders.map((s) => {
     let pickAll: HTMLElement | undefined;
     if (selectMode) {
@@ -383,7 +391,10 @@ function renderFolder(f: Folder): HTMLElement {
     );
   });
   const name = f.label ?? folderLabel(f.key);
-  return renderDetails(f.key, `${f.custom ? '🗂️' : '📁'} ${name}`, name, f.items.length, [
+  // en una hija se muestra solo su último nivel; la ruta completa queda en el tooltip
+  const shown = f.custom && f.parent ? folderName(name) : name;
+  return renderDetails(f.key, `${f.custom ? '🗂️' : '📁'} ${shown}`, name, f.items.length, [
+    ...kids,
     ...subs,
     ...f.rest.map((b) => renderCard(b)),
   ]);
@@ -396,6 +407,7 @@ function render(items: Bookmark[]) {
   const { folders, loose } = groupBookmarks(items);
 
   for (const f of folders) {
+    if (f.parent) continue; // las hijas se pintan dentro de su padre
     const li = document.createElement('li');
     li.append(renderFolder(f));
     list.append(li);
@@ -503,7 +515,7 @@ document.getElementById('export-db')!.addEventListener('click', async () => {
     const SQL = await loadSqlJs();
     // misma carpeta que ves en el popup, para poder filtrar por ella en el gestor
     const folderById = new Map<string, string>();
-    for (const f of groupBookmarks(items).folders) for (const b of f.items) folderById.set(b.id, f.label ?? f.key);
+    for (const f of groupBookmarks(items).folders) for (const b of f.own) folderById.set(b.id, f.label ?? f.key);
     const bytes = buildDb(SQL, items, folderById);
     download(new Blob([bytes as BlobPart], { type: 'application/vnd.sqlite3' }), `note-bookmarks-${today()}.db`);
     say(`Exportadas ${items.length} notas a SQLite (.db).`, 'ok');
